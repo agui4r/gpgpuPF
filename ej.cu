@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <nvtx3/nvToolsExt.h>
 
 #include <stdio.h>
@@ -30,14 +31,14 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 #include "deepmatmul.cu"
 
-__global__ void mult(const int* mat_a, const int* mat_b, int* mat_c, int N)
+__global__ void mult(const float* mat_a, const float* mat_b, float* mat_c, int N)
 {
     int idx_tile_x = blockIdx.x * blockDim.x + threadIdx.x;
     int idx_tile_y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    int tile_a[4][5];
-    int tile_b[5][5];
-    int tile_c[4][5] = {0};
+    float tile_a[4][5];
+    float tile_b[5][5];
+    float tile_c[4][5] = {0};
 
     for (int y = 0; y < 4; y++)
     {
@@ -54,32 +55,42 @@ __global__ void mult(const int* mat_a, const int* mat_b, int* mat_c, int N)
             tile_b[y][x] = mat_b[y * N + (idx_tile_x * 5 + x)];
         }
     }
+
+    deepmatmul(tile_a, tile_b, tile_c);
+    
+    for (int y = 0; y < 4; y++)
+    {
+        for (int x = 0; x < 5; x++)
+        {
+            mat_c[(idx_tile_y * 4 + y) * N + (idx_tile_x * 5 + x)] = tile_c[y][x];
+        }
+    }
 }
 
 int main(int argc, char *argv[])
 {
-    int N = 4*5*32;
+    int N = /*4**/5*32;
     int array_size = N * N;
-    int *h_mat_a = (int *)malloc(array_size * sizeof(int));
-    int *h_mat_b = (int *)malloc(array_size * sizeof(int));
-    int *h_mat_c = (int *)malloc(array_size * sizeof(int));
+    float *h_mat_a = (float *)malloc(array_size * sizeof(float));
+    float *h_mat_b = (float *)malloc(array_size * sizeof(float));
+    float *h_mat_c = (float *)malloc(array_size * sizeof(float));
 
     // srand(1231323);
     for (int i = 0; i < N * N; i++)
     {
-        h_mat_a[i] = 1; //rand() % 11;    
-        h_mat_b[i] = 1; //rand() % 11;    
-        h_mat_c[i] = 0; //rand() % 11;    
+        h_mat_a[i] = 1.0f; //rand() % 11;    
+        h_mat_b[i] = 1.0f; //rand() % 11;    
+        h_mat_c[i] = 0.0f; //rand() % 11;    
     } 
 
-    int *d_mat_a, *d_mat_b, *d_mat_c;
-    cudaMalloc((void **)&d_mat_a, array_size * sizeof(int));
-    cudaMalloc((void **)&d_mat_b, array_size * sizeof(int));
-    cudaMalloc((void **)&d_mat_c, array_size * sizeof(int));
+    float *d_mat_a, *d_mat_b, *d_mat_c;
+    cudaMalloc((void **)&d_mat_a, array_size * sizeof(float));
+    cudaMalloc((void **)&d_mat_b, array_size * sizeof(float));
+    cudaMalloc((void **)&d_mat_c, array_size * sizeof(float));
     //Copio array al device
-    CUDA_CHK(cudaMemcpy(d_mat_a, h_mat_a, array_size * sizeof(int), cudaMemcpyHostToDevice));
-    CUDA_CHK(cudaMemcpy(d_mat_b, h_mat_b, array_size * sizeof(int), cudaMemcpyHostToDevice));
-    CUDA_CHK(cudaMemcpy(d_mat_c, h_mat_c, array_size * sizeof(int), cudaMemcpyHostToDevice));
+    CUDA_CHK(cudaMemcpy(d_mat_a, h_mat_a, array_size * sizeof(float), cudaMemcpyHostToDevice));
+    CUDA_CHK(cudaMemcpy(d_mat_b, h_mat_b, array_size * sizeof(float), cudaMemcpyHostToDevice));
+    CUDA_CHK(cudaMemcpy(d_mat_c, h_mat_c, array_size * sizeof(float), cudaMemcpyHostToDevice));
     
     for (int i = 0; i < 10; i++)
     {
@@ -94,9 +105,16 @@ int main(int argc, char *argv[])
     }
 
 #ifndef DONT_PRINT
-    cudaMemcpy(h_mat_c, d_mat_c, array_size * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_mat_c, d_mat_c, array_size * sizeof(float), cudaMemcpyDeviceToHost);
     printf("============== C =================\n");
-    for (int i = 0; i < array_size; i++) printf("%d ", h_mat_c[i]);
+    for (int y = 0; y < N; y++)
+    {
+        for (int x = 0; x < N; x++)
+        {
+            printf("%1.0f ", h_mat_c[y * N + x]);
+        }
+        printf("\n");
+    }
     printf("\n");
 #endif
 

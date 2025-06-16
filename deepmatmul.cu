@@ -1,4 +1,4 @@
-__device__ void deepmatmul(const float a[4][5], const float b[5][5], float c[4][5]) {
+__host__ __device__ void deepmatmul(const float a[4][5], const float b[5][5], float c[4][5]) {
     float h[76];
 
     h[0] = a[2][1] * ( -b[1][0] - b[1][4] - b[2][0] );
