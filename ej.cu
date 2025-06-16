@@ -16,7 +16,7 @@
 #endif
 
 #ifndef BLOCK_SIZE_Y
-#define BLOCK_SIZE_Y 32
+#define BLOCK_SIZE_Y 4
 #endif
 
 #define CUDA_CHK(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -40,36 +40,43 @@ __global__ void mult(const float* mat_a, const float* mat_b, float* mat_c, int N
     float tile_b[5][5];
     float tile_c[4][5] = {0};
 
-    for (int y = 0; y < 4; y++)
+    for (int offset = 0; offset < N / 5; offset++)
     {
-        for (int x = 0; x < 5; x++)
+        for (int y = 0; y < 4; y++)
         {
-            tile_a[y][x] = mat_a[(idx_tile_y * 4 + y) * N + x];
+            for (int x = 0; x < 5; x++)
+            {
+                tile_a[y][x] = mat_a[(idx_tile_y * 4 + y) * N + (offset * 5 + x)];
+            }
         }
-    }
-    
-    for (int y = 0; y < 5; y++)
-    {
-        for (int x = 0; x < 5; x++)
+        
+        for (int y = 0; y < 5; y++)
         {
-            tile_b[y][x] = mat_b[y * N + (idx_tile_x * 5 + x)];
+            for (int x = 0; x < 5; x++)
+            {
+                tile_b[y][x] = mat_b[(offset * 5 + y) * N + (idx_tile_x * 5 + x)];
+            }
         }
-    }
 
-    deepmatmul(tile_a, tile_b, tile_c);
-    
-    for (int y = 0; y < 4; y++)
-    {
-        for (int x = 0; x < 5; x++)
+        deepmatmul(tile_a, tile_b, tile_c);
+        // if (idx_tile_y == 0 && idx_tile_x == 0)
+        // {
+        //     printf("INFO %f\n", tile_c[0][0]);
+        // }
+        
+        for (int y = 0; y < 4; y++)
         {
-            mat_c[(idx_tile_y * 4 + y) * N + (idx_tile_x * 5 + x)] = tile_c[y][x];
+            for (int x = 0; x < 5; x++)
+            {
+                mat_c[(idx_tile_y * 4 + y) * N + (idx_tile_x * 5 + x)] += tile_c[y][x];
+            }
         }
     }
 }
 
 int main(int argc, char *argv[])
 {
-    int N = /*4**/5*32;
+    int N = 4*5*32;
     int array_size = N * N;
     float *h_mat_a = (float *)malloc(array_size * sizeof(float));
     float *h_mat_b = (float *)malloc(array_size * sizeof(float));
@@ -91,14 +98,18 @@ int main(int argc, char *argv[])
     CUDA_CHK(cudaMemcpy(d_mat_a, h_mat_a, array_size * sizeof(float), cudaMemcpyHostToDevice));
     CUDA_CHK(cudaMemcpy(d_mat_b, h_mat_b, array_size * sizeof(float), cudaMemcpyHostToDevice));
     CUDA_CHK(cudaMemcpy(d_mat_c, h_mat_c, array_size * sizeof(float), cudaMemcpyHostToDevice));
+
+    dim3 gridDim((N / 5) / BLOCK_SIZE_X, (N / 4) / BLOCK_SIZE_Y, 1);
+    dim3 blockDim(BLOCK_SIZE_X, BLOCK_SIZE_Y, 1);
+
+    printf("gridDim = {%d, %d, %d}\n", gridDim.x, gridDim.y, gridDim.z);
+    printf("blockDim = {%d, %d, %d}\n", blockDim.x, blockDim.y, blockDim.z);
     
     for (int i = 0; i < 10; i++)
     {
+        CUDA_CHK(cudaMemcpy(d_mat_c, h_mat_c, array_size * sizeof(float), cudaMemcpyHostToDevice));
         nvtxRangePush("Multiplicacion matrices");
-        mult<<<
-            dim3((N / 5) / BLOCK_SIZE_X, (N / 4) / BLOCK_SIZE_Y, 1),
-            dim3(BLOCK_SIZE_X, BLOCK_SIZE_Y, 1)
-        >>>(d_mat_a, d_mat_b, d_mat_c, N);
+        mult<<<gridDim, blockDim>>>(d_mat_a, d_mat_b, d_mat_c, N);
         // TODO: Agregar el otro check
         CUDA_CHK(cudaGetLastError());
         CUDA_CHK(cudaDeviceSynchronize());
@@ -112,7 +123,7 @@ int main(int argc, char *argv[])
     {
         for (int x = 0; x < N; x++)
         {
-            printf("%1.0f ", h_mat_c[y * N + x]);
+            printf("%f ", h_mat_c[y * N + x]);
         }
         printf("\n");
     }
