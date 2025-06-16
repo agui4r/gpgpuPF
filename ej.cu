@@ -100,6 +100,7 @@ int main(int argc, char *argv[])
             dim3(BLOCK_SIZE_X, BLOCK_SIZE_Y, 1)
         >>>(d_mat_a, d_mat_b, d_mat_c, N);
         // TODO: Agregar el otro check
+        CUDA_CHK(cudaGetLastError());
         CUDA_CHK(cudaDeviceSynchronize());
         nvtxRangePop();
     }
