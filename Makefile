@@ -1,6 +1,6 @@
 CC = nvcc
 
-NVCC_FLAGS = -Xcompiler -ftree-vectorize -Xcompiler -fopenmp -O2 -w -m64 -g -Wno-deprecated-gpu-targets \
+NVCC_FLAGS = -Xcompiler -ftree-vectorize -Xcompiler -fopenmp -O3 -w -m64 -g -Wno-deprecated-gpu-targets \
 #             -gencode=arch=compute_61,code=sm_61 \
 			 -arch=sm_61  \
              -Xptxas -dlcm=cg

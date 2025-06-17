@@ -10,11 +10,11 @@ constexpr char pack_elem(char is_positive, char y, char x)
 
 inline __device__ constexpr void unpack_elem_into(
     const char packed,
-    char &sign,
+    char &sum,
     char &y,
     char &x
 ) {
-    sign = (packed & 0b10000000) ? 1 : -1;
+    sum = (packed & 0b10000000);
     y    = (packed & 0b00111000) >> 3;
     x    = (packed & 0b00000111);
 }
@@ -614,21 +614,24 @@ __constant__ struct {
     {510, 0},
 };
 
-__device__ float calc_h(const float a[4][5], const float b[5][5], int tid)
+inline __device__ float calc_h(const float a[4][5], const float b[5][5], int tid)
 {
-    auto L = lookup_table[tid];
     float sum_a = 0, sum_b = 0;
 
     char sign, y, x;
-    for (int j = L.a_start; j < L.b_start; ++j)
+    for (int j = lookup_table[tid].a_start; j < lookup_table[tid].b_start; ++j)
     {
         unpack_elem_into(elements[j], sign, y, x);
-        sum_a += sign * a[y][x];
+        sum_a += sign
+            ? +a[y][x]
+            : -a[y][x];
     }
-    for (int j = L.b_start; j < lookup_table[tid+1].a_start; ++j)
+    for (int j = lookup_table[tid].b_start; j < lookup_table[tid+1].a_start; ++j)
     {
         unpack_elem_into(elements[j], sign, y, x);
-        sum_b += sign * b[y][x];
+        sum_b += sign
+            ? +b[y][x]
+            : -b[y][x];
     }
 
     return sum_a * sum_b;
@@ -658,7 +661,7 @@ __constant__ LutStruct lut[][12] = {
     {{-1, 11}, {-1, 28}, {+1, 29}, {-1, 33}, {+1, 34}, {+1, 38}, {+1, 2}, {-1, 44}, {+1, 56}, {+1, 58}, {0, -1}},
 };
 
-__device__ float calc_c(const float h[76], int tid)
+inline __device__ float calc_c(const float h[76], int tid)
 {
     float res = 0.0f;
     auto *it = lut[tid];
@@ -783,22 +786,18 @@ __global__ void mult_2_kernel(
 
     __shared__ float tile_a[4 * 3][5];
     __shared__ float tile_b[5][5];
-    __shared__ float tile_c[4 * 3][5];
 
-    for (int y = 0; y < 4 * 3; y++)
-    {
-        for (int x = 0; x < 5; x++)
-        {
-            tile_c[y][x] = 0.0f;
-        }
-    }
+    float value = 0.0f;
 
     __shared__ float h[3][76];
+
+    clock_t start_time, stop_time;
 
     int y = threadIdx.y;
     int x = threadIdx.x;
     for (int offset = 0; offset < N / 5; offset++)
     {
+        start_time = clock();
         // Copy tiles of mat_a to shared memory
         tile_a[y][x] = mat_a[(tile_idx_y * 4 + y) * N + (offset * 5 + x)];
 
@@ -809,7 +808,11 @@ __global__ void mult_2_kernel(
         }
 
         __syncthreads();
+        stop_time = clock();
+        if (x == 0 && y == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+            printf("Time copy tile to shared = %ld\n", stop_time - start_time);
 
+        start_time = clock();
         // if (y == 0 && x < 3)
         // {
         //     deepmatmul_only_h(tile_a, tile_b, h[x]);
@@ -824,6 +827,7 @@ __global__ void mult_2_kernel(
         // podemos calcular 4 hs por thread
         if (tile_local_id < 19)
         {
+            #pragma unroll 4
             for (int i = 0; i < 4; i++)
             {
                 int h_idx = tile_local_id * 4 + i;
@@ -842,17 +846,27 @@ __global__ void mult_2_kernel(
 
         __syncthreads();
 
+        stop_time = clock();
+        if (x == 0 && y == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+            printf("Time calc h[] = %ld\n", stop_time - start_time);
+
+        start_time = clock();
+
         // if (y == 0 && x < 3)
         // {
         //     deepmatmul_only_c(h[x], &tile_c[x*4]);
         // }
         
-        tile_c[y][x] += calc_c(h[tile], tile_local_id);
+        value += calc_c(h[tile], tile_local_id);
         
         __syncthreads();
+
+        stop_time = clock();
+        if (x == 0 && y == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+            printf("Time calc_c = %ld\n", stop_time - start_time);
     }
 
-    mat_c[(tile_idx_y * 4 + y) * N + (tile_idx_x * 5 + x)] = tile_c[y][x];
+    mat_c[(tile_idx_y * 4 + y) * N + (tile_idx_x * 5 + x)] = value;
 }
 
 void mult_2(const float* mat_a, const float* mat_b, float* mat_c, int N)
