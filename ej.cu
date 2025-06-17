@@ -201,8 +201,6 @@ int main(int argc, char *argv[])
     //Copio array al device
     CUDA_CHK(cudaMemcpy(d_mat_a, h_mat_a, array_size * sizeof(float), cudaMemcpyHostToDevice));
     CUDA_CHK(cudaMemcpy(d_mat_b, h_mat_b, array_size * sizeof(float), cudaMemcpyHostToDevice));
-    CUDA_CHK(cudaMemcpy(d_mat_c, h_mat_c, array_size * sizeof(float), cudaMemcpyHostToDevice));
-    CUDA_CHK(cudaMemcpy(d_mat_c_naive_result, h_mat_c, array_size * sizeof(float), cudaMemcpyHostToDevice));
 
     dim3 gridDim((N / 5) / BLOCK_SIZE_X, (N / 4) / BLOCK_SIZE_Y, 1);
     dim3 blockDim(BLOCK_SIZE_X, BLOCK_SIZE_Y, 1);
@@ -220,14 +218,18 @@ int main(int argc, char *argv[])
         nvtxRangePop();
     }
 
-    nvtxRangePush("Naive mult");
-    naive_mult<<<
-        dim3(N / BLOCK_SIZE_X, N / BLOCK_SIZE_Y, 1),
-        dim3(BLOCK_SIZE_X, BLOCK_SIZE_Y, 1)
-    >>>(d_mat_a, d_mat_b, d_mat_c_naive_result, N);
-    CUDA_CHK(cudaGetLastError());
-    CUDA_CHK(cudaDeviceSynchronize());
-    nvtxRangePop();
+    for (int i = 0; i < 10; i++)
+    {
+        CUDA_CHK(cudaMemcpy(d_mat_c_naive_result, h_mat_c, array_size * sizeof(float), cudaMemcpyHostToDevice));
+        nvtxRangePush("Naive mult");
+        naive_mult<<<
+            dim3(N / BLOCK_SIZE_X, N / BLOCK_SIZE_Y, 1),
+            dim3(BLOCK_SIZE_X, BLOCK_SIZE_Y, 1)
+        >>>(d_mat_a, d_mat_b, d_mat_c_naive_result, N);
+        CUDA_CHK(cudaGetLastError());
+        CUDA_CHK(cudaDeviceSynchronize());
+        nvtxRangePop();
+    }
 
     CUDA_CHK(cudaMemcpy(h_mat_c, d_mat_c, array_size * sizeof(float), cudaMemcpyDeviceToHost));
     CUDA_CHK(cudaMemcpy(h_mat_c_naive_result, d_mat_c_naive_result, array_size * sizeof(float), cudaMemcpyDeviceToHost));
