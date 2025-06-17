@@ -1,6 +1,673 @@
 #include "mult_2.cuh"
 
 #include "util.cuh"
+#include <cstdio>
+
+constexpr char pack_elem(char is_positive, char y, char x)
+{
+    return (is_positive << 7) | (y << 3) | x;
+}
+
+inline __device__ constexpr void unpack_elem_into(
+    const char packed,
+    char &sign,
+    char &y,
+    char &x
+) {
+    sign = (packed & 0b10000000) ? 1 : -1;
+    y    = (packed & 0b00111000) >> 3;
+    x    = (packed & 0b00000111);
+}
+
+__constant__ char elements[] = {
+    pack_elem(1, 2, 1),
+    pack_elem(0, 1, 0),
+    pack_elem(0, 1, 4),
+    pack_elem(0, 2, 0),
+    pack_elem(1, 1, 1),
+    pack_elem(1, 1, 4),
+    pack_elem(0, 2, 4),
+    pack_elem(0, 1, 4),
+    pack_elem(0, 4, 0),
+    pack_elem(0, 2, 0),
+    pack_elem(0, 3, 0),
+    pack_elem(1, 3, 1),
+    pack_elem(0, 0, 0),
+    pack_elem(1, 1, 4),
+    pack_elem(1, 0, 1),
+    pack_elem(1, 0, 3),
+    pack_elem(1, 2, 3),
+    pack_elem(0, 1, 4),
+    pack_elem(0, 3, 0),
+    pack_elem(1, 0, 4),
+    pack_elem(1, 1, 1),
+    pack_elem(1, 1, 4),
+    pack_elem(0, 1, 3),
+    pack_elem(1, 4, 0),
+    pack_elem(0, 1, 1),
+    pack_elem(0, 1, 4),
+    pack_elem(0, 3, 4),
+    pack_elem(1, 1, 2),
+    pack_elem(1, 4, 0),
+    pack_elem(0, 0, 0),
+    pack_elem(1, 3, 0),
+    pack_elem(0, 3, 1),
+    pack_elem(1, 0, 0),
+    pack_elem(1, 1, 3),
+    pack_elem(1, 2, 1),
+    pack_elem(0, 2, 2),
+    pack_elem(0, 3, 2),
+    pack_elem(0, 1, 2),
+    pack_elem(1, 2, 0),
+    pack_elem(0, 0, 1),
+    pack_elem(0, 0, 3),
+    pack_elem(1, 3, 3),
+    pack_elem(1, 1, 2),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 1, 1),
+    pack_elem(1, 1, 4),
+    pack_elem(1, 4, 0),
+    pack_elem(0, 1, 0),
+    pack_elem(0, 3, 0),
+    pack_elem(1, 3, 1),
+    pack_elem(0, 0, 0),
+    pack_elem(1, 1, 1),
+    pack_elem(1, 3, 0),
+    pack_elem(0, 3, 1),
+    pack_elem(1, 0, 0),
+    pack_elem(1, 0, 1),
+    pack_elem(1, 0, 3),
+    pack_elem(1, 1, 3),
+    pack_elem(1, 1, 1),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 0, 2),
+    pack_elem(0, 2, 1),
+    pack_elem(1, 2, 2),
+    pack_elem(1, 1, 3),
+    pack_elem(1, 2, 0),
+    pack_elem(0, 0, 1),
+    pack_elem(0, 0, 3),
+    pack_elem(1, 3, 0),
+    pack_elem(0, 2, 1),
+    pack_elem(1, 2, 2),
+    pack_elem(1, 2, 0),
+    pack_elem(1, 0, 1),
+    pack_elem(1, 0, 3),
+    pack_elem(0, 1, 0),
+    pack_elem(1, 1, 1),
+    pack_elem(0, 1, 2),
+    pack_elem(1, 1, 3),
+    pack_elem(0, 2, 1),
+    pack_elem(1, 2, 2),
+    pack_elem(0, 3, 0),
+    pack_elem(1, 3, 1),
+    pack_elem(1, 1, 1),
+    pack_elem(1, 1, 0),
+    pack_elem(1, 0, 0),
+    pack_elem(1, 0, 1),
+    pack_elem(1, 4, 1),
+    pack_elem(0, 1, 2),
+    pack_elem(1, 2, 0),
+    pack_elem(1, 2, 1),
+    pack_elem(1, 4, 1),
+    pack_elem(0, 0, 4),
+    pack_elem(1, 1, 0),
+    pack_elem(1, 1, 2),
+    pack_elem(0, 1, 4),
+    pack_elem(0, 0, 0),
+    pack_elem(0, 0, 1),
+    pack_elem(1, 0, 3),
+    pack_elem(0, 4, 1),
+    pack_elem(1, 1, 0),
+    pack_elem(1, 1, 2),
+    pack_elem(0, 1, 4),
+    pack_elem(1, 4, 1),
+    pack_elem(1, 0, 2),
+    pack_elem(0, 0, 3),
+    pack_elem(0, 1, 3),
+    pack_elem(1, 0, 0),
+    pack_elem(1, 0, 1),
+    pack_elem(0, 0, 3),
+    pack_elem(0, 2, 0),
+    pack_elem(0, 2, 1),
+    pack_elem(1, 2, 3),
+    pack_elem(1, 3, 3),
+    pack_elem(1, 0, 2),
+    pack_elem(0, 2, 0),
+    pack_elem(1, 2, 3),
+    pack_elem(1, 3, 3),
+    pack_elem(1, 0, 4),
+    pack_elem(0, 3, 3),
+    pack_elem(0, 4, 0),
+    pack_elem(1, 4, 3),
+    pack_elem(0, 0, 0),
+    pack_elem(1, 0, 0),
+    pack_elem(0, 0, 3),
+    pack_elem(0, 0, 2),
+    pack_elem(1, 0, 3),
+    pack_elem(1, 0, 4),
+    pack_elem(1, 3, 3),
+    pack_elem(1, 0, 2),
+    pack_elem(0, 2, 0),
+    pack_elem(1, 2, 2),
+    pack_elem(1, 0, 0),
+    pack_elem(0, 0, 3),
+    pack_elem(1, 0, 4),
+    pack_elem(1, 2, 4),
+    pack_elem(0, 2, 3),
+    pack_elem(0, 2, 4),
+    pack_elem(0, 3, 0),
+    pack_elem(0, 3, 4),
+    pack_elem(1, 2, 0),
+    pack_elem(1, 0, 0),
+    pack_elem(1, 0, 4),
+    pack_elem(1, 2, 4),
+    pack_elem(1, 2, 0),
+    pack_elem(0, 2, 2),
+    pack_elem(1, 2, 3),
+    pack_elem(1, 2, 4),
+    pack_elem(0, 0, 3),
+    pack_elem(0, 0, 4),
+    pack_elem(0, 2, 3),
+    pack_elem(0, 3, 3),
+    pack_elem(0, 4, 0),
+    pack_elem(1, 4, 3),
+    pack_elem(0, 4, 4),
+    pack_elem(1, 1, 0),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 3, 3),
+    pack_elem(1, 0, 2),
+    pack_elem(0, 3, 0),
+    pack_elem(0, 3, 1),
+    pack_elem(0, 3, 2),
+    pack_elem(1, 3, 2),
+    pack_elem(0, 2, 0),
+    pack_elem(0, 2, 2),
+    pack_elem(1, 3, 3),
+    pack_elem(0, 0, 2),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 3, 2),
+    pack_elem(0, 3, 4),
+    pack_elem(1, 0, 2),
+    pack_elem(1, 4, 0),
+    pack_elem(1, 4, 2),
+    pack_elem(1, 1, 2),
+    pack_elem(0, 1, 4),
+    pack_elem(0, 3, 4),
+    pack_elem(1, 2, 0),
+    pack_elem(1, 2, 1),
+    pack_elem(1, 2, 2),
+    pack_elem(1, 4, 1),
+    pack_elem(0, 3, 0),
+    pack_elem(0, 3, 3),
+    pack_elem(1, 3, 4),
+    pack_elem(1, 0, 2),
+    pack_elem(0, 1, 2),
+    pack_elem(0, 2, 0),
+    pack_elem(1, 2, 2),
+    pack_elem(0, 2, 3),
+    pack_elem(1, 2, 4),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 3, 1),
+    pack_elem(1, 3, 4),
+    pack_elem(0, 2, 0),
+    pack_elem(0, 3, 0),
+    pack_elem(0, 3, 3),
+    pack_elem(1, 3, 4),
+    pack_elem(1, 0, 2),
+    pack_elem(1, 4, 0),
+    pack_elem(1, 4, 2),
+    pack_elem(1, 4, 4),
+    pack_elem(0, 0, 2),
+    pack_elem(1, 0, 3),
+    pack_elem(1, 0, 4),
+    pack_elem(0, 3, 3),
+    pack_elem(0, 2, 0),
+    pack_elem(0, 2, 2),
+    pack_elem(1, 2, 3),
+    pack_elem(1, 3, 3),
+    pack_elem(0, 0, 0),
+    pack_elem(1, 3, 0),
+    pack_elem(0, 3, 4),
+    pack_elem(1, 0, 2),
+    pack_elem(1, 2, 0),
+    pack_elem(1, 2, 2),
+    pack_elem(0, 2, 3),
+    pack_elem(1, 4, 0),
+    pack_elem(1, 4, 2),
+    pack_elem(0, 4, 3),
+    pack_elem(0, 1, 0),
+    pack_elem(1, 1, 4),
+    pack_elem(0, 2, 4),
+    pack_elem(0, 0, 0),
+    pack_elem(0, 0, 1),
+    pack_elem(0, 0, 4),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 3, 1),
+    pack_elem(1, 3, 4),
+    pack_elem(0, 4, 1),
+    pack_elem(1, 1, 3),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 3, 1),
+    pack_elem(1, 1, 2),
+    pack_elem(1, 2, 1),
+    pack_elem(0, 2, 2),
+    pack_elem(1, 1, 1),
+    pack_elem(0, 2, 0),
+    pack_elem(0, 2, 2),
+    pack_elem(1, 2, 3),
+    pack_elem(0, 3, 2),
+    pack_elem(1, 2, 4),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 3, 2),
+    pack_elem(1, 3, 4),
+    pack_elem(1, 4, 0),
+    pack_elem(1, 4, 2),
+    pack_elem(1, 4, 4),
+    pack_elem(0, 2, 4),
+    pack_elem(0, 4, 0),
+    pack_elem(0, 4, 4),
+    pack_elem(1, 1, 0),
+    pack_elem(0, 1, 4),
+    pack_elem(0, 2, 0),
+    pack_elem(1, 2, 4),
+    pack_elem(1, 0, 0),
+    pack_elem(1, 0, 1),
+    pack_elem(1, 0, 4),
+    pack_elem(0, 3, 0),
+    pack_elem(0, 3, 1),
+    pack_elem(0, 3, 4),
+    pack_elem(0, 1, 2),
+    pack_elem(1, 2, 2),
+    pack_elem(1, 1, 1),
+    pack_elem(1, 2, 1),
+    pack_elem(1, 2, 4),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 3, 1),
+    pack_elem(1, 3, 4),
+    pack_elem(0, 0, 0),
+    pack_elem(0, 0, 2),
+    pack_elem(1, 0, 3),
+    pack_elem(1, 0, 4),
+    pack_elem(0, 1, 0),
+    pack_elem(0, 1, 2),
+    pack_elem(1, 1, 3),
+    pack_elem(1, 1, 4),
+    pack_elem(0, 0, 0),
+    pack_elem(0, 0, 1),
+    pack_elem(1, 0, 3),
+    pack_elem(0, 0, 3),
+    pack_elem(0, 1, 3),
+    pack_elem(1, 1, 1),
+    pack_elem(0, 2, 0),
+    pack_elem(0, 2, 1),
+    pack_elem(1, 2, 3),
+    pack_elem(0, 3, 1),
+    pack_elem(1, 3, 3),
+    pack_elem(1, 1, 1),
+    pack_elem(1, 1, 0),
+    pack_elem(1, 1, 1),
+    pack_elem(0, 4, 0),
+    pack_elem(1, 3, 1),
+    pack_elem(1, 0, 0),
+    pack_elem(1, 1, 0),
+    pack_elem(1, 1, 2),
+    pack_elem(0, 0, 1),
+    pack_elem(0, 1, 0),
+    pack_elem(1, 1, 3),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 0, 1),
+    pack_elem(1, 0, 3),
+    pack_elem(0, 1, 1),
+    pack_elem(0, 1, 4),
+    pack_elem(0, 2, 1),
+    pack_elem(1, 2, 2),
+    pack_elem(0, 3, 1),
+    pack_elem(1, 3, 2),
+    pack_elem(0, 3, 3),
+    pack_elem(0, 3, 4),
+    pack_elem(1, 1, 2),
+    pack_elem(1, 0, 3),
+    pack_elem(0, 3, 3),
+    pack_elem(0, 1, 2),
+    pack_elem(1, 2, 0),
+    pack_elem(1, 2, 2),
+    pack_elem(0, 2, 3),
+    pack_elem(1, 3, 2),
+    pack_elem(0, 3, 3),
+    pack_elem(1, 0, 0),
+    pack_elem(0, 0, 4),
+    pack_elem(0, 3, 0),
+    pack_elem(1, 3, 4),
+    pack_elem(1, 2, 0),
+    pack_elem(1, 2, 2),
+    pack_elem(0, 2, 3),
+    pack_elem(1, 4, 0),
+    pack_elem(1, 4, 2),
+    pack_elem(0, 4, 3),
+    pack_elem(0, 2, 0),
+    pack_elem(0, 3, 0),
+    pack_elem(0, 0, 2),
+    pack_elem(0, 0, 4),
+    pack_elem(0, 1, 4),
+    pack_elem(0, 4, 0),
+    pack_elem(0, 4, 2),
+    pack_elem(0, 4, 4),
+    pack_elem(0, 0, 3),
+    pack_elem(0, 0, 4),
+    pack_elem(0, 2, 3),
+    pack_elem(0, 2, 4),
+    pack_elem(0, 4, 0),
+    pack_elem(1, 4, 3),
+    pack_elem(0, 4, 4),
+    pack_elem(0, 2, 2),
+    pack_elem(1, 2, 3),
+    pack_elem(0, 3, 2),
+    pack_elem(1, 3, 3),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 3, 2),
+    pack_elem(1, 3, 4),
+    pack_elem(1, 4, 0),
+    pack_elem(1, 4, 2),
+    pack_elem(1, 4, 4),
+    pack_elem(1, 1, 4),
+    pack_elem(1, 3, 4),
+    pack_elem(1, 1, 2),
+    pack_elem(0, 2, 0),
+    pack_elem(0, 2, 1),
+    pack_elem(0, 2, 2),
+    pack_elem(0, 4, 1),
+    pack_elem(0, 4, 2),
+    pack_elem(1, 0, 3),
+    pack_elem(1, 2, 3),
+    pack_elem(1, 0, 0),
+    pack_elem(0, 0, 3),
+    pack_elem(1, 0, 4),
+    pack_elem(0, 1, 4),
+    pack_elem(0, 3, 3),
+    pack_elem(1, 3, 4),
+    pack_elem(0, 4, 0),
+    pack_elem(1, 4, 3),
+    pack_elem(0, 4, 4),
+    pack_elem(1, 1, 0),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 0, 1),
+    pack_elem(1, 0, 2),
+    pack_elem(1, 1, 1),
+    pack_elem(0, 3, 0),
+    pack_elem(0, 3, 1),
+    pack_elem(0, 3, 2),
+    pack_elem(0, 2, 2),
+    pack_elem(0, 3, 2),
+    pack_elem(0, 1, 2),
+    pack_elem(0, 2, 2),
+    pack_elem(0, 2, 4),
+    pack_elem(0, 3, 0),
+    pack_elem(0, 3, 2),
+    pack_elem(0, 3, 4),
+    pack_elem(1, 0, 0),
+    pack_elem(0, 0, 2),
+    pack_elem(0, 0, 3),
+    pack_elem(1, 2, 0),
+    pack_elem(0, 2, 2),
+    pack_elem(0, 2, 3),
+    pack_elem(1, 0, 0),
+    pack_elem(0, 0, 3),
+    pack_elem(1, 0, 4),
+    pack_elem(0, 0, 0),
+    pack_elem(1, 3, 0),
+    pack_elem(0, 0, 2),
+    pack_elem(1, 0, 3),
+    pack_elem(1, 1, 3),
+    pack_elem(0, 4, 0),
+    pack_elem(0, 4, 2),
+    pack_elem(1, 4, 3),
+    pack_elem(1, 0, 0),
+    pack_elem(0, 0, 1),
+    pack_elem(1, 0, 2),
+    pack_elem(0, 0, 4),
+    pack_elem(0, 1, 1),
+    pack_elem(0, 1, 4),
+    pack_elem(0, 2, 1),
+    pack_elem(1, 2, 2),
+    pack_elem(0, 3, 0),
+    pack_elem(1, 3, 1),
+    pack_elem(1, 1, 3),
+    pack_elem(1, 1, 4),
+    pack_elem(0, 2, 4),
+    pack_elem(1, 0, 0),
+    pack_elem(1, 0, 1),
+    pack_elem(1, 0, 4),
+    pack_elem(0, 1, 4),
+    pack_elem(0, 3, 0),
+    pack_elem(0, 3, 1),
+    pack_elem(0, 3, 4),
+    pack_elem(1, 4, 1),
+    pack_elem(1, 4, 4),
+    pack_elem(1, 0, 0),
+    pack_elem(1, 0, 2),
+    pack_elem(0, 0, 3),
+    pack_elem(0, 0, 4),
+    pack_elem(0, 3, 0),
+    pack_elem(0, 3, 2),
+    pack_elem(1, 3, 3),
+    pack_elem(1, 3, 4),
+    pack_elem(0, 2, 0),
+    pack_elem(0, 2, 2),
+    pack_elem(1, 2, 3),
+    pack_elem(0, 0, 2),
+    pack_elem(1, 0, 3),
+    pack_elem(0, 1, 2),
+    pack_elem(1, 1, 3),
+    pack_elem(0, 1, 3),
+    pack_elem(0, 2, 0),
+    pack_elem(0, 2, 1),
+    pack_elem(1, 2, 3),
+    pack_elem(0, 4, 1),
+    pack_elem(1, 4, 3),
+    pack_elem(1, 1, 2),
+    pack_elem(0, 1, 4),
+    pack_elem(1, 3, 2),
+    pack_elem(0, 3, 4),
+    pack_elem(0, 2, 0),
+    pack_elem(0, 2, 1),
+    pack_elem(0, 2, 2),
+    pack_elem(0, 2, 0),
+    pack_elem(1, 2, 2),
+    pack_elem(0, 2, 3),
+    pack_elem(1, 2, 4),
+    pack_elem(0, 3, 0),
+    pack_elem(1, 3, 2),
+    pack_elem(0, 3, 3),
+    pack_elem(1, 3, 4),
+    pack_elem(0, 4, 0),
+    pack_elem(0, 4, 2),
+    pack_elem(0, 4, 4),
+    pack_elem(0, 1, 0),
+    pack_elem(0, 1, 3),
+    pack_elem(0, 3, 0),
+    pack_elem(0, 3, 3),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 3, 1),
+    pack_elem(1, 3, 2),
+    pack_elem(1, 0, 2),
+    pack_elem(0, 0, 3),
+    pack_elem(0, 0, 4),
+    pack_elem(1, 1, 2),
+    pack_elem(0, 1, 3),
+    pack_elem(0, 1, 4),
+    pack_elem(1, 0, 0),
+    pack_elem(1, 0, 1),
+    pack_elem(0, 0, 3),
+    pack_elem(1, 1, 3),
+    pack_elem(1, 4, 1),
+    pack_elem(0, 4, 3),
+    pack_elem(1, 1, 0),
+    pack_elem(0, 1, 2),
+    pack_elem(1, 1, 3),
+    pack_elem(0, 2, 0),
+    pack_elem(1, 2, 2),
+    pack_elem(0, 2, 3),
+    pack_elem(1, 3, 0),
+    pack_elem(1, 3, 1),
+    pack_elem(1, 3, 4),
+    pack_elem(0, 0, 1),
+    pack_elem(0, 0, 3),
+    pack_elem(1, 1, 1),
+    pack_elem(1, 1, 4),
+    pack_elem(1, 2, 0),
+    pack_elem(0, 2, 1),
+    pack_elem(0, 2, 3),
+    pack_elem(0, 2, 4),
+    pack_elem(1, 3, 0),
+    pack_elem(0, 3, 1),
+    pack_elem(1, 1, 4),
+    pack_elem(1, 0, 2),
+    pack_elem(1, 2, 2),
+    pack_elem(0, 0, 0),
+    pack_elem(1, 0, 3),
+    pack_elem(0, 0, 4),
+    pack_elem(1, 1, 3),
+    pack_elem(1, 2, 3),
+    pack_elem(0, 2, 4),
+};
+
+__constant__ struct {
+    unsigned short a_start, b_start;
+} lookup_table[] = {
+    {0, 1},
+    {4, 7},
+    {9, 12},
+    {14, 17},
+    {19, 22},
+    {24, 27},
+    {29, 32},
+    {34, 37},
+    {39, 42},
+    {44, 46},
+    {47, 50},
+    {52, 54},
+    {55, 58},
+    {60, 63},
+    {65, 67},
+    {68, 70},
+    {71, 81},
+    {82, 83},
+    {86, 87},
+    {90, 94},
+    {98, 101},
+    {102, 105},
+    {112, 113},
+    {116, 117},
+    {120, 121},
+    {123, 126},
+    {127, 130},
+    {134, 135},
+    {138, 139},
+    {142, 145},
+    {146, 149},
+    {153, 156},
+    {160, 161},
+    {163, 164},
+    {167, 168},
+    {171, 174},
+    {178, 181},
+    {182, 186},
+    {190, 194},
+    {198, 202},
+    {206, 209},
+    {216, 219},
+    {226, 227},
+    {229, 232},
+    {234, 237},
+    {244, 245},
+    {247, 251},
+    {257, 259},
+    {265, 273},
+    {276, 278},
+    {284, 285},
+    {288, 289},
+    {292, 293},
+    {296, 306},
+    {307, 309},
+    {315, 319},
+    {325, 327},
+    {333, 337},
+    {340, 344},
+    {350, 352},
+    {358, 360},
+    {369, 371},
+    {377, 379},
+    {385, 391},
+    {394, 396},
+    {402, 412},
+    {413, 415},
+    {424, 432},
+    {435, 439},
+    {445, 449},
+    {452, 460},
+    {463, 467},
+    {470, 476},
+    {482, 488},
+    {491, 501},
+    {502, 504},
+    {510, 0},
+};
+
+__device__ float calc_h(const float a[4][5], const float b[5][5], int tid)
+{
+    auto L = lookup_table[tid];
+    float sum_a = 0, sum_b = 0;
+
+    char sign, y, x;
+    for (int j = L.a_start; j < L.b_start; ++j)
+    {
+        unpack_elem_into(elements[j], sign, y, x);
+        sum_a += sign * a[y][x];
+    }
+    for (int j = L.b_start; j < lookup_table[tid+1].a_start; ++j)
+    {
+        unpack_elem_into(elements[j], sign, y, x);
+        sum_b += sign * b[y][x];
+    }
+
+    return sum_a * sum_b;
+}
+
+struct LutStruct {char sign; char idx;};
+__constant__ LutStruct lut[][12] = {
+    {{-1, 9}, {+1, 11}, {+1, 13}, {-1, 14}, {-1, 15}, {+1, 52}, {+1, 4}, {-1, 65}, {-1, 6}, {0, -1}},
+    {{+1, 12}, {+1, 14}, {+1, 19}, {+1, 20}, {-1, 21}, {+1, 22}, {+1, 24}, {-1, 42}, {+1, 48}, {+1, 49}, {0, -1}},
+    {{+1, 14}, {+1, 22}, {+1, 23}, {+1, 33}, {-1, 36}, {+1, 39}, {-1, 40}, {+1, 54}, {-1, 55}, {-1, 8}, {0, -1}},
+    {{-1, 9}, {+1, 11}, {+1, 13}, {-1, 15}, {+1, 22}, {+1, 23}, {+1, 24}, {+1, 25}, {+1, 4}, {-1, 65}, {-1, 6}, {0, -1}},
+    {{+1, 14}, {+1, 23}, {+1, 24}, {+1, 26}, {-1, 27}, {+1, 29}, {+1, 30}, {-1, 3}, {+1, 60}, {+1, 63}, {0, -1}},
+    {{+1, 9}, {+1, 10}, {-1, 11}, {+1, 12}, {+1, 14}, {+1, 15}, {-1, 16}, {-1, 43}, {+1, 50}, {0, -1}},
+    {{-1, 10}, {+1, 11}, {-1, 12}, {-1, 14}, {-1, 15}, {+1, 16}, {+1, 17}, {-1, 18}, {-1, 20}, {+1, 42}, {+1, 43}, {0, -1}},
+    {{-1, 9}, {+1, 18}, {+1, 31}, {+1, 34}, {+1, 35}, {+1, 36}, {-1, 42}, {-1, 59}, {-1, 5}, {-1, 71}, {0, -1}},
+    {{+1, 9}, {+1, 17}, {-1, 18}, {+1, 19}, {-1, 21}, {-1, 23}, {-1, 25}, {-1, 4}, {-1, 68}, {+1, 72}, {0, -1}},
+    {{-1, 9}, {-1, 17}, {-1, 1}, {-1, 29}, {-1, 37}, {+1, 41}, {-1, 42}, {+1, 45}, {+1, 66}, {+1, 73}, {0, -1}},
+    {{+1, 9}, {-1, 11}, {+1, 14}, {+1, 15}, {-1, 0}, {+1, 1}, {+1, 2}, {-1, 3}, {+1, 74}, {0, -1}},
+    {{-1, 15}, {-1, 18}, {-1, 20}, {-1, 27}, {-1, 28}, {-1, 37}, {+1, 41}, {+1, 43}, {-1, 46}, {+1, 47}, {0, -1}},
+    {{-1, 15}, {-1, 27}, {+1, 32}, {+1, 36}, {-1, 38}, {+1, 44}, {-1, 45}, {+1, 62}, {-1, 70}, {-1, 7}, {0, -1}},
+    {{-1, 13}, {+1, 15}, {-1, 22}, {-1, 25}, {+1, 26}, {+1, 28}, {+1, 30}, {+1, 45}, {-1, 57}, {+1, 75}, {0, -1}},
+    {{-1, 9}, {+1, 11}, {-1, 14}, {+1, 27}, {+1, 28}, {-1, 1}, {-1, 29}, {-1, 2}, {+1, 45}, {+1, 3}, {-1, 74}, {0, -1}},
+    {{-1, 9}, {+1, 11}, {-1, 14}, {-1, 15}, {+1, 51}, {+1, 53}, {-1, 5}, {-1, 7}, {+1, 8}, {0, -1}},
+    {{+1, 10}, {-1, 11}, {-1, 17}, {+1, 20}, {-1, 31}, {+1, 32}, {-1, 33}, {-1, 35}, {+1, 61}, {-1, 69}, {0, -1}},
+    {{+1, 9}, {+1, 14}, {+1, 15}, {-1, 32}, {+1, 33}, {-1, 34}, {-1, 36}, {-1, 53}, {+1, 5}, {+1, 7}, {-1, 8}, {0, -1}},
+    {{+1, 11}, {+1, 24}, {+1, 25}, {-1, 32}, {-1, 34}, {-1, 39}, {+1, 40}, {+1, 64}, {-1, 67}, {-1, 6}, {0, -1}},
+    {{-1, 11}, {-1, 28}, {+1, 29}, {-1, 33}, {+1, 34}, {+1, 38}, {+1, 2}, {-1, 44}, {+1, 56}, {+1, 58}, {0, -1}},
+};
+
+__device__ float calc_c(const float h[76], int tid)
+{
+    float res = 0.0f;
+    auto *it = lut[tid];
+    while (it->sign != 0) {
+        res += it->sign * h[it->idx];
+        it++;
+    }
+    return res;
+}
 
 __global__ void mult_2_kernel(
     const float* mat_a,
@@ -8,23 +675,88 @@ __global__ void mult_2_kernel(
     float* mat_c,
     int N)
 {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    int tid = threadIdx.x; 
 
-    if (x >= N || y >= N) return;
+    int tile_idx_x = blockIdx.x;
+    int tile_idx_y = blockIdx.y;
 
-    mat_c[y * N + x] = 0.0f;
-    for (int o = 0; o < N; o++)
+    __shared__ float tile_a[4][5];
+    __shared__ float tile_b[5][5];
+
+    __shared__ float h[76];
+
+    clock_t start_time_total = clock();
+    clock_t start_time, stop_time;
+    for (int offset = 0; offset < N / 5; offset++)
     {
-        mat_c[y * N + x] += mat_a[y * N + o] * mat_b[o * N + x];
+        // if (tid == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+        //     printf("[%d, %d]: offset %d\n", tile_idx_y, tile_idx_x, offset);
+
+        start_time = clock();
+        if (tid < 20)
+        {
+            int y = tid / 5;
+            int x = tid % 5;
+            tile_a[y][x] = mat_a[(tile_idx_y * 4 + y) * N + (offset * 5 + x)];
+        }
+        else if (tid < 20 + 25)
+        {
+            int y = (tid - 20) / 5;
+            int x = (tid - 20) % 5;
+            tile_b[y][x] = mat_b[(offset * 5 + y) * N + (tile_idx_x * 5 + x)];
+        }
+
+        // if (tid == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+        // {
+        //     for (int y = 0; y < 4; y++)
+        //     {
+        //         for (int x = 0; x < 5; x++)
+        //             printf("%f ", tile_b[y][x]);
+        //         printf("\n");
+        //     }
+        // }
+
+        __syncthreads();
+        stop_time = clock();
+        if (tid == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+            printf("Time copy tile to shared = %ld\n", stop_time - start_time);
+
+        start_time = clock();
+        h[tid] = calc_h(tile_a, tile_b, tid);
+
+        __syncthreads();
+        stop_time = clock();
+        if (tid == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+            printf("Time calc h[] = %ld\n", stop_time - start_time);
+
+        // if (tid == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+        // {
+        //     for (int i = 0; i < 76; i++)
+        //         printf("%1.0f ", h[i]);
+        //     printf("\n");
+        // }
+
+        start_time = clock();
+        if (tid < 20)
+        {
+            int y = tid / 5;
+            int x = tid % 5;
+            mat_c[(tile_idx_y * 4 + y) * N + (tile_idx_x * 5 + x)] += calc_c(h, tid);
+        }
+        stop_time = clock();
+        if (tid == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+            printf("Time write into mat_c = %ld\n", stop_time - start_time);
     }
+    clock_t stop_time_total = clock();
+    if (tid == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+        printf("TOTAL = %ld\n", stop_time_total - start_time_total);
 }
 
 void mult_2(const float* mat_a, const float* mat_b, float* mat_c, int N)
 {
-    constexpr int BLOCK_SIZE_X = 8;
-    constexpr int BLOCK_SIZE_Y = 8;
-    dim3 gridDim(N / BLOCK_SIZE_X, N / BLOCK_SIZE_Y, 1);
+    constexpr int BLOCK_SIZE_X = 76;
+    constexpr int BLOCK_SIZE_Y = 1;
+    dim3 gridDim(N / 5, N / 4, 1);
     dim3 blockDim(BLOCK_SIZE_X, BLOCK_SIZE_Y, 1);
     mult_2_kernel<<<gridDim, blockDim>>>(mat_a, mat_b, mat_c, N);
     CUDA_CHK(cudaGetLastError());

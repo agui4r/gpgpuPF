@@ -40,7 +40,7 @@ bool verify(const float *correct_mat, const float *to_verify_mat, size_t length)
 
 int main(int argc, char *argv[])
 {
-    int N = 5*32*20;
+    int N = 5*32*8;
     int array_size = N * N;
     float *h_mat_a = (float *)malloc(array_size * sizeof(float));
     float *h_mat_b = (float *)malloc(array_size * sizeof(float));

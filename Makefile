@@ -1,6 +1,6 @@
 CC = nvcc
 
-NVCC_FLAGS = -Xcompiler -ftree-vectorize -Xcompiler -fopenmp -O2 -w -m64 -g \
+NVCC_FLAGS = -Xcompiler -ftree-vectorize -Xcompiler -fopenmp -O2 -w -m64 -g -Wno-deprecated-gpu-targets \
 #             -gencode=arch=compute_61,code=sm_61 \
 			 -arch=sm_61  \
              -Xptxas -dlcm=cg
@@ -30,13 +30,13 @@ $(MAIN): $(OBJS)
 main.o: main.cu util.cuh mult_one_thread_per_tile_in_c_mat.cuh mult_naive.cuh mult_2.cuh
 	$(CC) $(NVCC_FLAGS) -c -o $@ main.cu
 
-mult_one_thread_per_tile_in_c_mat.o: util.cuh mult_one_thread_per_tile_in_c_mat.cuh
+mult_one_thread_per_tile_in_c_mat.o: util.cuh mult_one_thread_per_tile_in_c_mat.cuh mult_one_thread_per_tile_in_c_mat.cu
 	$(CC) $(NVCC_FLAGS) -c -o $@ mult_one_thread_per_tile_in_c_mat.cu
 
-mult_naive.o: util.cuh mult_naive.cuh
+mult_naive.o: util.cuh mult_naive.cuh mult_naive.cu
 	$(CC) $(NVCC_FLAGS) -c -o $@ mult_naive.cu
 
-mult_2.o: util.cuh mult_2.cuh
+mult_2.o: util.cuh mult_2.cuh mult_2.cu
 	$(CC) $(NVCC_FLAGS) -c -o $@ mult_2.cu
 
 clean:
