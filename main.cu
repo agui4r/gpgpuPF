@@ -5,11 +5,13 @@
 
 #include <stdio.h>
 
-#include "util.cuh"
-
+#include "mult_cublas.cuh"
 #include "mult_one_thread_per_tile_in_c_mat.cuh"
 #include "mult_naive.cuh"
+#include "mult_tiled_32x32_conventional.cuh"
 #include "mult_2.cuh"
+
+#include "util.cuh"
 
 #ifndef MATRIX_SIZE_A
 #define MATRIX_SIZE_A 1024
@@ -27,7 +29,9 @@ struct Algorithm {
 constexpr int ITERATIONS = 3;
 
 const std::vector<Algorithm> algorithms = {
+    { "mult_cublas", &mult_cublas },
     { "mult_naive", &mult_naive },
+    { "mult_tiled_32x32_conventional", &mult_tiled_32x32_conventional },
     { "mult_one_thread_per_tile_in_c_mat", &mult_one_thread_per_tile_in_c_mat },
     { "mult_2", &mult_2 },
 };
@@ -64,7 +68,7 @@ int main(int argc, char *argv[])
     CUDA_CHK(cudaMemcpy(d_mat_b, h_mat_b, array_size * sizeof(float), cudaMemcpyHostToDevice));
     CUDA_CHK(cudaMemcpy(d_mat_c_correct, h_mat_c, array_size * sizeof(float), cudaMemcpyHostToDevice));
 
-    mult_naive(d_mat_a, d_mat_b, d_mat_c_correct, N);
+    mult_cublas(d_mat_a, d_mat_b, d_mat_c_correct, N);
   
     float *d_mat_c_algorithm;
     CUDA_CHK(cudaMalloc((void **)&d_mat_c_algorithm, array_size * sizeof(float)));

@@ -793,11 +793,13 @@ __global__ void mult_2_kernel(
 
     clock_t start_time, stop_time;
 
+    constexpr bool measure_time = false;
+
     int y = threadIdx.y;
     int x = threadIdx.x;
     for (int offset = 0; offset < N / 5; offset++)
     {
-        start_time = clock();
+        if constexpr (measure_time) start_time = clock();
         // Copy tiles of mat_a to shared memory
         tile_a[y][x] = mat_a[(tile_idx_y * 4 + y) * N + (offset * 5 + x)];
 
@@ -808,11 +810,15 @@ __global__ void mult_2_kernel(
         }
 
         __syncthreads();
-        stop_time = clock();
-        if (x == 0 && y == 0 && blockIdx.x == 0 && blockIdx.y == 0)
-            printf("Time copy tile to shared = %ld\n", stop_time - start_time);
 
-        start_time = clock();
+        if constexpr (measure_time)
+        {
+            stop_time = clock();
+            if (x == 0 && y == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+                printf("Time copy tile to shared = %ld\n", stop_time - start_time);
+            start_time = clock();
+        }
+
         // if (y == 0 && x < 3)
         // {
         //     deepmatmul_only_h(tile_a, tile_b, h[x]);
@@ -846,11 +852,13 @@ __global__ void mult_2_kernel(
 
         __syncthreads();
 
-        stop_time = clock();
-        if (x == 0 && y == 0 && blockIdx.x == 0 && blockIdx.y == 0)
-            printf("Time calc h[] = %ld\n", stop_time - start_time);
-
-        start_time = clock();
+        if constexpr (measure_time)
+        {
+            stop_time = clock();
+            if (x == 0 && y == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+                printf("Time calc h[] = %ld\n", stop_time - start_time);
+            start_time = clock();
+        }
 
         // if (y == 0 && x < 3)
         // {
@@ -861,9 +869,12 @@ __global__ void mult_2_kernel(
         
         __syncthreads();
 
-        stop_time = clock();
-        if (x == 0 && y == 0 && blockIdx.x == 0 && blockIdx.y == 0)
-            printf("Time calc_c = %ld\n", stop_time - start_time);
+        if constexpr (measure_time)
+        {
+            stop_time = clock();
+            if (x == 0 && y == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+                printf("Time calc_c = %ld\n", stop_time - start_time);
+        }
     }
 
     mat_c[(tile_idx_y * 4 + y) * N + (tile_idx_x * 5 + x)] = value;
