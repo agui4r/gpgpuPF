@@ -33,7 +33,7 @@ const std::vector<Algorithm> algorithms = {
     { "mult_naive", &mult_naive },
     { "mult_tiled_32x32_conventional", &mult_tiled_32x32_conventional },
     { "mult_one_thread_per_tile_in_c_mat", &mult_one_thread_per_tile_in_c_mat },
-    { "mult_2", &mult_2 },
+    //{ "mult_2", &mult_2 },
 };
 
 // Takes device pointers
@@ -44,7 +44,7 @@ bool verify(const float *correct_mat, const float *to_verify_mat, size_t length)
 
 int main(int argc, char *argv[])
 {
-    int N = 5*32*3;
+    int N = 5*32*3*10;
     int array_size = N * N;
     float *h_mat_a = (float *)malloc(array_size * sizeof(float));
     float *h_mat_b = (float *)malloc(array_size * sizeof(float));

@@ -1,9 +1,11 @@
 #include "mult_one_thread_per_tile_in_c_mat.cuh"
 
 #include "util.cuh"
+#include <cstdio>
+#include <ctime>
 
 // __host__ __device__ void deepmatmul(const float a[4][5], const float b[5][5], float c[4][5]) {
-__device__ void deepmatmul(const float *a[4], const float *b[5], float *c[4]) {
+__device__ void deepmatmul(const float a[4][5], const float b[5][5], float c[4][5]) {
     float h[76];
 
     h[0] = a[2][1] * ( -b[1][0] - b[1][4] - b[2][0] );
@@ -112,6 +114,9 @@ __device__ void deepmatmul(const float *a[4], const float *b[5], float *c[4]) {
     c[3][4] += -h[11] - h[28] + h[29] - h[33] + h[34] + h[38] + h[2]  - h[44] + h[56] + h[58];
 }
 
+constexpr int BLOCK_SIZE_X = 20;
+constexpr int BLOCK_SIZE_Y = 25;
+
 __global__ void mult_one_thread_per_tile_in_c_mat_kernel(
     const float *mat_a,
     const float *mat_b,
@@ -121,29 +126,54 @@ __global__ void mult_one_thread_per_tile_in_c_mat_kernel(
     int tile_idx_x = blockIdx.x * blockDim.x + threadIdx.x;
     int tile_idx_y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    const float *tile_a[4];
-    const float *tile_b[5];
-    float *tile_c[4];
+    __shared__ float tiles_a[BLOCK_SIZE_Y][4][5];
+    __shared__ float tiles_b[BLOCK_SIZE_X][5][5];
 
+    float tile_c[4][5];
     for (int y = 0; y < 4; y++)
-    {
-        tile_c[y] = &mat_c[(tile_idx_y * 4 + y) * N + (tile_idx_x * 5)];
-    }
+        for (int x = 0; x < 5; x++)
+            tile_c[y][x] = 0.0f;
 
+#ifdef TIME
+    clock_t start, stop;
+#endif
     for (int offset = 0; offset < N / 5; offset++)
     {
-        for (int y = 0; y < 4; y++)
-        {
-            tile_a[y] = &mat_a[(tile_idx_y * 4 + y) * N + (offset * 5)];
-        }
-        
-        for (int y = 0; y < 5; y++)
-        {
-            tile_b[y] = &mat_b[(offset * 5 + y) * N + (tile_idx_x * 5)];
-        }
+#ifdef TIME
+        start = clock();
+#endif
 
-        deepmatmul(tile_a, tile_b, tile_c);
+        static_assert(BLOCK_SIZE_X == 4*5);
+        int y = threadIdx.x / 5;
+        int x = threadIdx.x % 5;
+        // for (int y = 0; y < 5; y++) for (int x = 0; x < 4; x++)
+        tiles_a[threadIdx.y][y][x] = mat_a[(tile_idx_y * 4 + y) * N + (offset * 5 + x)];
+        
+        static_assert(BLOCK_SIZE_Y == 5*5);
+        y = threadIdx.y / 5;
+        x = threadIdx.y % 5;
+        // for (int y = 0; y < 5; y++) for (int x = 0; x < 5; x++)
+        tiles_b[threadIdx.x][y][x] = mat_b[(offset * 5 + y) * N + (tile_idx_x * 5 + x)];
+
+        __syncthreads();
+        
+#ifdef TIME
+        stop = clock();
+#endif
+
+        deepmatmul(tiles_a[threadIdx.y], tiles_b[threadIdx.x], tile_c);
+        
+        __syncthreads(); 
     }
+
+    for (int y = 0; y < 4; y++)
+        for (int x = 0; x < 5; x++)
+            mat_c[(tile_idx_y * 4 + y) * N + (tile_idx_x * 5 + x)] = tile_c[y][x];
+
+#ifdef TIME
+    if (blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0)
+        printf("t: %ld\n", stop - start);
+#endif
 }
 
 void mult_one_thread_per_tile_in_c_mat(
@@ -152,8 +182,9 @@ void mult_one_thread_per_tile_in_c_mat(
     float *mat_c,
     int N
 ) {
-    constexpr int BLOCK_SIZE_X = 32;
-    constexpr int BLOCK_SIZE_Y = 4;
+#ifdef TIME
+    cudaFuncSetCacheConfig(mult_one_thread_per_tile_in_c_mat_kernel, cudaFuncCachePreferShared);
+#endif
     dim3 gridDim((N / 5) / BLOCK_SIZE_X, (N / 4) / BLOCK_SIZE_Y, 1);
     dim3 blockDim(BLOCK_SIZE_X, BLOCK_SIZE_Y, 1);
     mult_one_thread_per_tile_in_c_mat_kernel<<<gridDim, blockDim>>>(mat_a, mat_b, mat_c, N);

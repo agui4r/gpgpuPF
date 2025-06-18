@@ -52,5 +52,9 @@ void mult_cublas(const float* mat_a, const float* mat_b, float* mat_c, int N)
             N
         )
     );
+
+    CUDA_CHK(cudaStreamSynchronize(stream));
+    CUBLAS_CHECK(cublasDestroy(cublasH));
+    CUDA_CHK(cudaStreamDestroy(stream));
 }
 
