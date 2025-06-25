@@ -134,6 +134,7 @@ __global__ void mult_one_thread_per_tile_in_c_mat_kernel(
         for (int x = 0; x < 5; x++)
             tile_c[y][x] = 0.0f;
 
+//#define TIME
 #ifdef TIME
     clock_t start, stop;
 #endif

@@ -3,7 +3,7 @@
 #include <thrust/equal.h>
 #include <thrust/execution_policy.h>
 
-#include <stdio.h>
+#include <cublas_v2.h>
 
 #include "mult_cublas.cuh"
 #include "mult_one_thread_per_tile_in_c_mat.cuh"
@@ -30,16 +30,43 @@ constexpr int ITERATIONS = 3;
 
 const std::vector<Algorithm> algorithms = {
     { "mult_cublas", &mult_cublas },
-    { "mult_naive", &mult_naive },
     { "mult_tiled_32x32_conventional", &mult_tiled_32x32_conventional },
     { "mult_one_thread_per_tile_in_c_mat", &mult_one_thread_per_tile_in_c_mat },
-    //{ "mult_2", &mult_2 },
+    { "mult_naive", &mult_naive },
+    { "mult_2", &mult_2 },
 };
 
 // Takes device pointers
 bool verify(const float *correct_mat, const float *to_verify_mat, size_t length)
 {
-    return thrust::equal(thrust::device, correct_mat, correct_mat + length, to_verify_mat);
+    cublasHandle_t cublasH = NULL;
+    cudaStream_t stream = NULL;
+
+    cublasOperation_t transa = CUBLAS_OP_N;
+    cublasOperation_t transb = CUBLAS_OP_N;
+
+    float *mat_cpy;
+    CUDA_CHK(cudaMalloc((void **)&mat_cpy, length * sizeof(float)));
+    CUDA_CHK(cudaMemcpy(mat_cpy, to_verify_mat, length * sizeof(float), cudaMemcpyHostToDevice));
+
+    /* step 1: create cublas handle, bind a stream */
+    cublasCreate(&cublasH);
+
+    CUDA_CHK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+    cublasSetStream(cublasH, stream);
+
+    float alpha = -1.0f;
+    cublasSaxpy_v2(cublasH, length, &alpha, correct_mat, 1, mat_cpy, 1);
+    float res = 0.0f;
+    cublasSnrm2_v2(cublasH, length, mat_cpy, 1, &res);
+
+    CUDA_CHK(cudaStreamSynchronize(stream));
+    cublasDestroy(cublasH);
+    CUDA_CHK(cudaStreamDestroy(stream));
+
+    printf("NORM %f\n", res);
+
+    return res < 0.0001f;
 }
 
 int main(int argc, char *argv[])
