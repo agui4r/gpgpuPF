@@ -315,57 +315,29 @@ __global__ void mult_2_kernel(
     int tileX = blockIdx.x;
     int tileY = blockIdx.y;
 
-
     const float *Ap = mat_a + (tileY*4)*N;
     const float *Bp = mat_b + (tileX*5);
     float       *Cp = mat_c + (tileY*4)*N + tileX*5;
 
-    constexpr int KTILES = 5;
-
-    // 20 + 25 = 45 floats  → caben en registros sin problema
+    // 20 + 25 + 20 = 65 floats  → caben en registros ?
     float Areg[20], Breg[25], Acc[20] = {0.f};
-
-    // opcional double-buffer en SMEM (45*2*4 B = 360 B)
-    // __shared__ float smem[2][45];
-
-    int warpId   = threadIdx.x >> 5;              // siempre 0: un warp/CTA
-    int lane     = threadIdx.x & 31;              // 0‒31
-    // int l_chunk4 = lane >> 2;                     // cada hilo trae 4 floats
+    int row = threadIdx.x / 5;
+    int col = threadIdx.x % 5;
 
     #pragma unroll 1
-    for (int kt = 0; kt < KTILES; ++kt)
+    for (int offset = 0; offset < N; offset += 5)
     {
-        float as4[4], bs4[4];
-        #pragma unroll
-        for (int i = 0; i < 4; i++)
+        if (threadIdx.x < 20)
         {
-            //assert(reinterpret_cast<size_t>(A + kt*5 + (l_chunk4*4)) % alignof(float4) == 0);
-            as4[i] = *(A + kt*5 + (l_chunk4*4) + i);          // coalesced
-            //assert(reinterpret_cast<size_t>(B + kt*5*ldb + (l_chunk4*4)) % alignof(float4) == 0);
-            bs4[i] = *(B + kt*5*ldb + (l_chunk4*4) + i);
+           Areg[threadIdx.x] = Ap[row * N + col + offset];
         }
+        __syncthreads();
 
-        if constexpr (DOUBLE_BUF) {
-            for (int i = 0; i < 4; i++)
-            {
-                smem[(kt&1)][lane    + i] = as4[i];
-                smem[(kt&1)][lane+32 + 1] = bs4[i];
-            }
-            __syncthreads();
-            float *Aptr = smem[((kt)&1) ^ 1];    // bloque previo
-            float *Bptr = Aptr + 20;
-            #pragma unroll
-            for(int i=0;i<20;++i) Areg[i] = Aptr[i];
-            #pragma unroll
-            for(int i=0;i<25;++i) Breg[i] = Bptr[i];
-        } else {
-            #pragma unroll
-            for(int i=0;i<4;++i){
-                Areg[4*i + (lane&3)] = as4[i];
-                Breg[4*i + (lane&3)] = bs4[i];
-            }
-            if (lane == 28) Breg[24] = B[kt*5*ldb + 24];   // último resto
+        if (threadIdx.x < 25)
+        {
+            Breg[threadIdx.x] = Bp[(row + offset) * N + col];
         }
+        __syncthreads();
 
         // ----------  rank-76  ---------------------------------
         #pragma unroll
@@ -379,16 +351,12 @@ __global__ void mult_2_kernel(
             #pragma unroll
             for(int t=0;t<20;++t) Acc[t] += R[r][t] * m;
         }
+        __syncthreads();
     }
 
-    // -------- store C (coalesced) ----------------------------
-    #pragma unroll
-    for (int r=0;r<5;++r){
-        #pragma unroll
-        for (int i = 0; i < 4; i++)
-        {
-            C[r*ldc + i] = Acc[4*r+i];                          // row-major 4-wide
-        }
+    if (threadIdx.x < 20)
+    {
+        C[row * N + col] = Acc[threadIdx.x];
     }
 }
 
