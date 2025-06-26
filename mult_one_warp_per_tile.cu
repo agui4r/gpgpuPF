@@ -154,8 +154,8 @@ __global__ void mult_one_warp_per_tile_kernel(
             #pragma unroll
             for (int t = 0; t < 20; t++)
             {
-                AccShared[threadIdx.x] += Acc[threadIdx.x];
-            {
+                AccShared[t] += Acc[t];
+            }
         }
     }
 
