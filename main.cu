@@ -2,12 +2,14 @@
 #include <nvtx3/nvToolsExt.h>
 #include <thrust/equal.h>
 #include <thrust/execution_policy.h>
+#include <vector>
 
 #include <cublas_v2.h>
 
 #include "mult_cublas.cuh"
 #include "mult_one_thread_per_tile_in_c_mat.cuh"
 #include "mult_naive.cuh"
+#include "mult_one_warp_per_tile_2.cuh"
 #include "mult_tiled_32x32_conventional.cuh"
 #include "mult_2.cuh"
 #include "mult_one_warp_per_tile.cuh"
@@ -36,6 +38,7 @@ const std::vector<Algorithm> algorithms = {
     { "mult_naive", &mult_naive },
     { "mult_2", &mult_2 },
     { "mult_one_warp_per_tile", &mult_one_warp_per_tile },
+    //{ "mult_one_warp_per_tile_2", &mult_one_warp_per_tile_2 },
 };
 
 // Takes device pointers
@@ -43,9 +46,6 @@ bool verify(const float *correct_mat, const float *to_verify_mat, size_t length)
 {
     cublasHandle_t cublasH = NULL;
     cudaStream_t stream = NULL;
-
-    cublasOperation_t transa = CUBLAS_OP_N;
-    cublasOperation_t transb = CUBLAS_OP_N;
 
     float *mat_cpy;
     CUDA_CHK(cudaMalloc((void **)&mat_cpy, length * sizeof(float)));
@@ -66,7 +66,7 @@ bool verify(const float *correct_mat, const float *to_verify_mat, size_t length)
     cublasDestroy(cublasH);
     CUDA_CHK(cudaStreamDestroy(stream));
 
-    printf("NORM %f\n", res);
+    printf("NORM %f", res);
 
     return res < 0.0001f;
 }
@@ -103,6 +103,7 @@ int main(int argc, char *argv[])
     CUDA_CHK(cudaMalloc((void **)&d_mat_c_algorithm, array_size * sizeof(float)));
     for (auto &algorithm : algorithms)
     {
+        printf("%s:", algorithm.name);
         for (int i = 0; i < ITERATIONS; i++)
         {
             CUDA_CHK(cudaMemcpy(d_mat_c_algorithm, h_mat_c, array_size * sizeof(float), cudaMemcpyHostToDevice));
@@ -112,7 +113,7 @@ int main(int argc, char *argv[])
         }
 
         bool correct = verify(d_mat_c_correct, d_mat_c_algorithm, array_size);
-        printf("%s: %s\n", algorithm.name, correct ? "correct" : "incorrect");
+        printf(" %s\n", correct ? "correct" : "incorrect");
     }
     CUDA_CHK(cudaFree(d_mat_c_algorithm));
 
