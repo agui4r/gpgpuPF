@@ -37,7 +37,7 @@ const std::vector<Algorithm> algorithms = {
     { "mult_one_thread_per_tile_in_c_mat", &mult_one_thread_per_tile_in_c_mat },
     { "mult_naive", &mult_naive },
     { "mult_2", &mult_2 },
-    { "mult_one_warp_per_tile", &mult_one_warp_per_tile },
+    //{ "mult_one_warp_per_tile", &mult_one_warp_per_tile },
     //{ "mult_one_warp_per_tile_2", &mult_one_warp_per_tile_2 },
 };
 
