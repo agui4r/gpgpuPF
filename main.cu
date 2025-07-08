@@ -13,6 +13,7 @@
 #include "mult_tiled_32x32_conventional.cuh"
 #include "mult_2.cuh"
 #include "mult_one_warp_per_tile.cuh"
+#include "mult_multiple_warps.cuh"
 
 #include "util.cuh"
 
@@ -37,6 +38,7 @@ const std::vector<Algorithm> algorithms = {
     { "mult_one_thread_per_tile_in_c_mat", &mult_one_thread_per_tile_in_c_mat },
     { "mult_naive", &mult_naive },
     { "mult_2", &mult_2 },
+    { "mult_multiple_warps", &mult_multiple_warps },
     //{ "mult_one_warp_per_tile", &mult_one_warp_per_tile },
     //{ "mult_one_warp_per_tile_2", &mult_one_warp_per_tile_2 },
 };
