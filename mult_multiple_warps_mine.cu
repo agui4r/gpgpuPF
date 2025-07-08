@@ -41,11 +41,11 @@ __global__ void mult_multiple_warps_kernel(
     int N
 ) {
     __shared__ float tile_a[4][5];                              // Un tile de A.
-    __shared__ float tiles_b[BLOCK_SIZE_Y][5][5];               // Multiples tiles de B.
-    __shared__ float h_shared[BLOCK_SIZE_Y][76];                 
+    __shared__ float tiles_b[BLOCK_SIZE_X][5][5];               // Multiples tiles de B.
+    __shared__ float h_shared[BLOCK_SIZE_X][76];                 
 
-    float tiles_c[BLOCK_SIZE_Y][4][5];
-    for (int i = 0; i < BLOCK_SIZE_Y; i++)
+    float tiles_c[BLOCK_SIZE_X][4][5];
+    for (int i = 0; i < BLOCK_SIZE_X; i++)
         for (int y = 0; y < 4; y++)
             for (int x = 0; x < 5; x++)
                 tiles_c[i][y][x] = 0.0f;
@@ -60,18 +60,12 @@ __global__ void mult_multiple_warps_kernel(
             tile_a[threadIdx.y][threadIdx.x] = mat_a[a_row * N + a_col];
         }
         // Cargar 4 tiles de B: threads 5..24 de cada fila
-        else if (threadIdx.x >= 5 && threadIdx.x < 30 && threadIdx.y < 4) {
-            int tile_idx      = threadIdx.y;         // 0..3 → qué tile de B carga esta fila
-            int gid           = threadIdx.x - 5;     // 0..24
-            int b_row_in_tile = gid / 5;             // 0..4 → fila dentro del tile
-            int b_col_in_tile = gid % 5;             // 0..4 → columna dentro del tile
-
-            int global_b_row = offset + b_row_in_tile;
-            int global_b_col = blockIdx.x * (4 * 5)  // 4 tiles × 5 cols por bloque
-                     + tile_idx * 5          // desplazamiento del tile concreto
-                     + b_col_in_tile;        // columna dentro del tile
-
-            tiles_b[tile_idx][b_row_in_tile][b_col_in_tile] = mat_b[ global_b_row * N + global_b_col ];
+        else if (threadIdx.x >= 5 && threadIdx.x < 25 && threadIdx.y < 4) {
+            int tile_idx = (threadIdx.x - 5) / 5;                                           // 0..3 (cuál de los 4 tiles de B)
+            int local_b_row = (threadIdx.x - 5) % 5;                                        // 0..4 (fila dentro del tile)
+            int b_row = offset + local_b_row;
+            int b_col = blockIdx.x * 4 * 5 + tile_idx * 5;
+            tiles_b[tile_idx][threadIdx.y][local_b_row] = mat_b[b_row * N + (b_col + threadIdx.y)];
         }
         
         __syncthreads();
@@ -110,7 +104,7 @@ __global__ void mult_multiple_warps_kernel(
         int row = c_idx / 5;
         int col = c_idx % 5;
         int global_row = blockIdx.y*4 + row;
-        int global_col = (blockIdx.x*BLOCK_SIZE_Y + warp_id)*5 + col;
+        int global_col = (blockIdx.x*BLOCK_SIZE_X + warp_id)*5 + col;
         mat_c[global_row * N + global_col] = tiles_c[warp_id][row][col];
     }
 }
@@ -118,7 +112,7 @@ __global__ void mult_multiple_warps_kernel(
 
 void mult_multiple_warps(const float *mat_a, const float *mat_b, float *mat_c, int N) {
     // Cada bloque de la matriz toma cuatro tiles de B y un tile de A. Luego, calcula 4 tiles temporales de C.
-    dim3 gridDim((N / 5) / BLOCK_SIZE_Y, N / 4, 1);
+    dim3 gridDim((N / 5) / BLOCK_SIZE_X, N / 4, 1);
     dim3 blockDim(BLOCK_SIZE_X, BLOCK_SIZE_Y, 1);
     mult_multiple_warps_kernel<<<gridDim, blockDim>>>(mat_a, mat_b, mat_c, N);
     CUDA_CHK(cudaGetLastError());
