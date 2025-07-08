@@ -11,28 +11,142 @@
 #include "tables.cuh"
 #include "util.cuh"
 
-constexpr int BLOCK_SIZE_X = 32;
-constexpr int BLOCK_SIZE_Y = 4;
+#define BLOCK_SIZE_X 32
+#define BLOCK_SIZE_Y 5
+#define TILES_PER_BLOCK 4
 
-inline __device__ float calc_h(const float *a, const float *b, int h_idx)
-{
-    float sum_a = 0, sum_b = 0;
 
-    for (int8_t *it = a_pos[h_idx]; *it != -1; it++) sum_a += a[*it];
-    for (int8_t *it = a_neg[h_idx]; *it != -1; it++) sum_a -= a[*it];
-    for (int8_t *it = b_pos[h_idx]; *it != -1; it++) sum_b += b[*it];
-    for (int8_t *it = b_neg[h_idx]; *it != -1; it++) sum_b -= b[*it];
-
-    return sum_a * sum_b;
+__device__ float calc_h(const float a[4][5], const float b[5][5], int h_idx) {
+    switch (h_idx) {
+        case 0: return a[2][1] * ( -b[1][0] - b[1][4] - b[2][0] );
+        case 1: return (a[1][1] + a[1][4] - a[2][4]) * ( -b[1][4] - b[4][0] );
+        case 2: return (-a[2][0] - a[3][0] + a[3][1]) * ( -b[0][0] + b[1][4] );
+        case 3: return (a[0][1] + a[0][3] + a[2][3]) * ( -b[1][4] - b[3][0] );
+        case 4: return (a[0][4] + a[1][1] + a[1][4]) * ( -b[1][3] + b[4][0] );
+        case 5: return (-a[1][1] - a[1][4] - a[3][4]) * ( b[1][2] + b[4][0] );
+        case 6: return (-a[0][0] + a[3][0] - a[3][1]) * ( b[0][0] + b[1][3] );
+        case 7: return (a[2][1] - a[2][2] - a[3][2]) * ( -b[1][2] + b[2][0] );
+        case 8: return (-a[0][1] - a[0][3] + a[3][3]) * ( b[1][2] + b[3][0] );
+        case 9: return (a[1][1] + a[1][4]) * b[4][0];
+        case 10: return (-a[1][0] - a[3][0] + a[3][1]) * ( -b[0][0] + b[1][1] );
+        case 11: return (a[3][0] - a[3][1]) * b[0][0];
+        case 12: return (a[0][1] + a[0][3] + a[1][3]) * ( b[1][1] + b[3][0] );
+        case 13: return (a[0][2] - a[2][1] + a[2][2]) * ( b[1][3] + b[2][0] );
+        case 14: return (-a[0][1] - a[0][3]) * b[3][0];
+        case 15: return (-a[2][1] + a[2][2]) * b[2][0];
+        case 16: return (a[0][1] + a[0][3] - a[1][0] + a[1][1] - a[1][2] + a[1][3] - a[2][1] + a[2][2] - a[3][0] + a[3][1]) * b[1][1];
+        case 17: return a[1][0] * ( b[0][0] + b[0][1] + b[4][1] );
+        case 18: return -a[1][2] * ( b[2][0] + b[2][1] + b[4][1] );
+        case 19: return (-a[0][4] + a[1][0] + a[1][2] - a[1][4]) * ( -b[0][0] - b[0][1] + b[0][3] - b[4][1] );
+        case 20: return (a[1][0] + a[1][2] - a[1][4]) * b[4][1];
+        case 21: return (a[0][2] - a[0][3] - a[1][3]) * ( b[0][0] + b[0][1] - b[0][3] - b[2][0] - b[2][1] + b[2][3] + b[3][3] );
+        case 22: return a[0][2] * ( -b[2][0] + b[2][3] + b[3][3] );
+        case 23: return a[0][4] * ( -b[3][3] - b[4][0] + b[4][3] );
+        case 24: return -a[0][0] * ( b[0][0] - b[0][3] );
+        case 25: return (-a[0][2] + a[0][3] + a[0][4]) * b[3][3];
+        case 26: return (a[0][2] - a[2][0] + a[2][2]) * ( b[0][0] - b[0][3] + b[0][4] + b[2][4] );
+        case 27: return -a[2][3] * ( -b[2][4] - b[3][0] - b[3][4] );
+        case 28: return a[2][0] * ( b[0][0] + b[0][4] + b[2][4] );
+        case 29: return (a[2][0] - a[2][2] + a[2][3]) * b[2][4];
+        case 30: return (-a[0][3] - a[0][4] - a[2][3]) * ( -b[3][3] - b[4][0] + b[4][3] - b[4][4] );
+        case 31: return (a[1][0] + a[3][0] + a[3][3]) * ( b[0][2] - b[3][0] - b[3][1] - b[3][2] );
+        case 32: return a[3][2] * ( -b[2][0] - b[2][2] );
+        case 33: return a[3][3] * ( -b[0][2] + b[3][0] + b[3][2] );
+        case 34: return -a[3][4] * ( b[0][2] + b[4][0] + b[4][2] );
+        case 35: return (a[1][2] - a[1][4] - a[3][4]) * ( b[2][0] + b[2][1] + b[2][2] + b[4][1] );
+        case 36: return (-a[3][0] - a[3][3] + a[3][4]) * b[0][2];
+        case 37: return (-a[1][2] - a[2][0] + a[2][2] - a[2][3]) * ( b[2][4] + b[3][0] + b[3][1] + b[3][4] );
+        case 38: return (-a[2][0] - a[3][0] - a[3][3] + a[3][4]) * ( b[0][2] + b[4][0] + b[4][2] + b[4][4] );
+        case 39: return (-a[0][2] + a[0][3] + a[0][4] - a[3][3]) * ( -b[2][0] - b[2][2] + b[2][3] + b[3][3] );
+        case 40: return (-a[0][0] + a[3][0] - a[3][4]) * ( b[0][2] + b[2][0] + b[2][2] - b[2][3] + b[4][0] + b[4][2] - b[4][3] );
+        case 41: return (-a[1][0] + a[1][4] - a[2][4]) * ( -b[0][0] - b[0][1] - b[0][4] + b[3][0] + b[3][1] + b[3][4] - b[4][1] );
+        case 42: return a[1][3] * ( b[3][0] + b[3][1] );
+        case 43: return (a[1][2] + a[2][1] - a[2][2]) * ( b[1][1] - b[2][0] );
+        case 44: return (-a[2][2] + a[2][3] - a[3][2]) * ( b[2][4] + b[3][0] + b[3][2] + b[3][4] + b[4][0] + b[4][2] + b[4][4] );
+        case 45: return -a[2][4] * ( -b[4][0] - b[4][4] );
+        case 46: return (a[1][0] - a[1][4] - a[2][0] + a[2][4]) * ( b[0][0] + b[0][1] + b[0][4] - b[3][0] - b[3][1] - b[3][4] );
+        case 47: return (-a[1][2] + a[2][2]) * ( b[1][1] + b[2][1] + b[2][4] + b[3][0] + b[3][1] + b[3][4] );
+        case 48: return (-a[0][0] - a[0][2] + a[0][3] + a[0][4] - a[1][0] - a[1][2] + a[1][3] + a[1][4]) * ( -b[0][0] - b[0][1] + b[0][3] );
+        case 49: return (-a[0][3] - a[1][3]) * ( b[1][1] - b[2][0] - b[2][1] + b[2][3] - b[3][1] + b[3][3] );
+        case 50: return a[1][1] * ( b[1][0] + b[1][1] - b[4][0] );
+        case 51: return a[3][1] * (b[0][0] + b[1][0] + b[1][2]);
+        case 52: return -a[0][1] * (-b[1][0] + b[1][3] + b[3][0]);
+        case 53: return (a[0][1] + a[0][3] - a[1][1] - a[1][4] - a[2][1] + a[2][2] - a[3][1] + a[3][2] - a[3][3] - a[3][4]) * b[1][2];
+        case 54: return (a[0][3] - a[3][3]) * (-b[1][2] + b[2][0] + b[2][2] - b[2][3] + b[3][2] - b[3][3]);
+        case 55: return (a[0][0] - a[0][4] - a[3][0] + a[3][4]) * (b[2][0] + b[2][2] - b[2][3] + b[4][0] + b[4][2] - b[4][3]);
+        case 56: return (-a[2][0] - a[3][0]) * (-b[0][2] - b[0][4] - b[1][4] - b[4][0] - b[4][2] - b[4][4]);
+        case 57: return (-a[0][3] - a[0][4] - a[2][3] - a[2][4]) * (-b[4][0] + b[4][3] - b[4][4]);
+        case 58: return (-a[2][2] + a[2][3] - a[3][2] + a[3][3]) * (b[3][0] + b[3][2] + b[3][4] + b[4][0] + b[4][2] + b[4][4]);
+        case 59: return (a[1][4] + a[3][4]) * (b[1][2] - b[2][0] - b[2][1] - b[2][2] - b[4][1] - b[4][2]);
+        case 60: return (a[0][3] + a[2][3]) * (b[0][0] - b[0][3] + b[0][4] - b[1][4] - b[3][3] + b[3][4] - b[4][0] + b[4][3] - b[4][4]);
+        case 61: return (a[1][0] + a[3][0]) * (b[0][1] + b[0][2] + b[1][1] - b[3][0] - b[3][1] - b[3][2]);
+        case 62: return (-a[2][2] - a[3][2]) * (-b[1][2] - b[2][2] - b[2][4] - b[3][0] - b[3][2] - b[3][4]);
+        case 63: return (a[0][0] - a[0][2] - a[0][3] + a[2][0] - a[2][2] - a[2][3]) * (b[0][0] - b[0][3] + b[0][4]);
+        case 64: return (-a[0][0] + a[3][0]) * (-b[0][2] + b[0][3] + b[1][3] - b[4][0] - b[4][2] + b[4][3]);
+        case 65: return (a[0][0] - a[0][1] + a[0][2] - a[0][4] - a[1][1] - a[1][4] - a[2][1] + a[2][2] - a[3][0] + a[3][1]) * b[1][3];
+        case 66: return (a[1][4] - a[2][4]) * (b[0][0] + b[0][1] + b[0][4] - b[1][4] - b[3][0] - b[3][1] - b[3][4] + b[4][1] + b[4][4]);
+        case 67: return (a[0][0] + a[0][2] - a[0][3] - a[0][4] - a[3][0] - a[3][2] + a[3][3] + a[3][4]) * (-b[2][0] - b[2][2] + b[2][3]);
+        case 68: return (-a[0][2] + a[0][3] - a[1][2] + a[1][3]) * (-b[1][3] - b[2][0] - b[2][1] + b[2][3] - b[4][1] + b[4][3]);
+        case 69: return (a[1][2] - a[1][4] + a[3][2] - a[3][4]) * (-b[2][0] - b[2][1] - b[2][2]);
+        case 70: return (-a[2][0] + a[2][2] - a[2][3] + a[2][4] - a[3][0] + a[3][2] - a[3][3] + a[3][4]) * (-b[4][0] - b[4][2] - b[4][4]);
+        case 71: return (-a[1][0] - a[1][3] - a[3][0] - a[3][3]) * (b[3][0] + b[3][1] + b[3][2]);
+        case 72: return (a[0][2] - a[0][3] - a[0][4] + a[1][2] - a[1][3] - a[1][4]) * (b[0][0] + b[0][1] - b[0][3] + b[1][3] + b[4][1] - b[4][3]);
+        case 73: return (a[1][0] - a[1][2] + a[1][3] - a[2][0] + a[2][2] - a[2][3]) * (b[3][0] + b[3][1] + b[3][4]);
+        case 74: return - (a[0][1] + a[0][3] - a[1][1] - a[1][4] - a[2][0] + a[2][1] + a[2][3] + a[2][4] - a[3][0] + a[3][1]) * b[1][4];
+        case 75: return (a[0][2] + a[2][2]) * (-b[0][0] + b[0][3] - b[0][4] + b[1][3] + b[2][3] - b[2][4]);
+    }
+    assert(false);
+    return NAN;
 }
 
-inline __device__ float calc_c(const float h[76], int c_idx)
+__device__ float calc_c(const float h[76], int c_idx)
 {
-    float res = 0.0f;
-    for (int8_t *it = h_pos[c_idx]; *it != -1; it++) res += h[*it];
-    for (int8_t *it = h_neg[c_idx]; *it != -1; it++) res -= h[*it];
-    return res;
+    switch (c_idx) {
+        case 0: return -h[9]  + h[11] + h[13] - h[14] - h[15] + h[52] + h[4]  - h[65] - h[6];
+        case 1: return  h[12] + h[14] + h[19] + h[20] - h[21] + h[22] + h[24] - h[42] + h[48] + h[49];
+        case 2: return  h[14] + h[22] + h[23] + h[33] - h[36] + h[39] - h[40] + h[54] - h[55] - h[8];
+        case 3: return -h[9]  + h[11] + h[13] - h[15] + h[22] + h[23] + h[24] + h[25] + h[4]  - h[65] - h[6];
+        case 4: return  h[14] + h[23] + h[24] + h[26] - h[27] + h[29] + h[30] - h[3]  + h[60] + h[63];
+        case 5: return  h[9]  + h[10] - h[11] + h[12] + h[14] + h[15] - h[16] - h[43] + h[50];
+        case 6: return -h[10] + h[11] - h[12] - h[14] - h[15] + h[16] + h[17] - h[18] - h[20] + h[42] + h[43];
+        case 7: return -h[9]  + h[18] + h[31] + h[34] + h[35] + h[36] - h[42] - h[59] - h[5]  - h[71];
+        case 8: return  h[9]  + h[17] - h[18] + h[19] - h[21] - h[23] - h[25] - h[4]  - h[68] + h[72];
+        case 9: return -h[9]  - h[17] - h[1]  - h[29] - h[37] + h[41] - h[42] + h[45] + h[66] + h[73];
+        case 10: return  h[9]  - h[11] + h[14] + h[15] - h[0]  + h[1]  + h[2]  - h[3]  + h[74];
+        case 11: return -h[15] - h[18] - h[20] - h[27] - h[28] - h[37] + h[41] + h[43] - h[46] + h[47];
+        case 12: return -h[15] - h[27] + h[32] + h[36] - h[38] + h[44] - h[45] + h[62] - h[70] - h[7];
+        case 13: return -h[13] + h[15] - h[22] - h[25] + h[26] + h[28] + h[30] + h[45] - h[57] + h[75];
+        case 14: return -h[9]  + h[11] - h[14] + h[27] + h[28] - h[1]  - h[29] - h[2]  + h[45] + h[3] - h[74];
+        case 15: return -h[9]  + h[11] - h[14] - h[15] + h[51] + h[53] - h[5]  - h[7]  + h[8];
+        case 16: return  h[10] - h[11] - h[17] + h[20] - h[31] + h[32] - h[33] - h[35] + h[61] - h[69];
+        case 17: return  h[9]  + h[14] + h[15] - h[32] + h[33] - h[34] - h[36] - h[53] + h[5]  + h[7] - h[8];
+        case 18: return  h[11] + h[24] + h[25] - h[32] - h[34] - h[39] + h[40] + h[64] - h[67] - h[6];
+        case 19: return -h[11] - h[28] + h[29] - h[33] + h[34] + h[38] + h[2]  - h[44] + h[56] + h[58];
+    }
+    assert(false);
+    return NAN;
 }
+
+
+// inline __device__ float calc_h(const float *a, const float *b, int h_idx)
+// {
+//     float sum_a = 0, sum_b = 0;
+
+//     for (int8_t *it = a_pos[h_idx]; *it != -1; it++) sum_a += a[*it];
+//     for (int8_t *it = a_neg[h_idx]; *it != -1; it++) sum_a -= a[*it];
+//     for (int8_t *it = b_pos[h_idx]; *it != -1; it++) sum_b += b[*it];
+//     for (int8_t *it = b_neg[h_idx]; *it != -1; it++) sum_b -= b[*it];
+
+//     return sum_a * sum_b;
+// }
+
+// inline __device__ float calc_c(const float h[76], int c_idx)
+// {
+//     float res = 0.0f;
+//     for (int8_t *it = h_pos[c_idx]; *it != -1; it++) res += h[*it];
+//     for (int8_t *it = h_neg[c_idx]; *it != -1; it++) res -= h[*it];
+//     return res;
+// }
 
 __global__ void mult_multiple_warps_kernel(
     const float *mat_a,
@@ -41,11 +155,11 @@ __global__ void mult_multiple_warps_kernel(
     int N
 ) {
     __shared__ float tile_a[4][5];                              // Un tile de A.
-    __shared__ float tiles_b[BLOCK_SIZE_Y][5][5];               // Multiples tiles de B.
-    __shared__ float h_shared[BLOCK_SIZE_Y][76];                 
+    __shared__ float tiles_b[TILES_PER_BLOCK][5][5];               // Multiples tiles de B.
+    __shared__ float h_shared[TILES_PER_BLOCK][76];                 
 
-    float tiles_c[BLOCK_SIZE_Y][4][5];
-    for (int i = 0; i < BLOCK_SIZE_Y; i++)
+    __shared__ float tiles_c[TILES_PER_BLOCK][4][5];
+    for (int i = 0; i < TILES_PER_BLOCK; i++)
         for (int y = 0; y < 4; y++)
             for (int x = 0; x < 5; x++)
                 tiles_c[i][y][x] = 0.0f;
@@ -59,60 +173,97 @@ __global__ void mult_multiple_warps_kernel(
             int a_col = offset + threadIdx.x;
             tile_a[threadIdx.y][threadIdx.x] = mat_a[a_row * N + a_col];
         }
-        // Cargar 4 tiles de B: threads 5..24 de cada fila
-        else if (threadIdx.x >= 5 && threadIdx.x < 30 && threadIdx.y < 4) {
-            int tile_idx      = threadIdx.y;         // 0..3 → qué tile de B carga esta fila
-            int gid           = threadIdx.x - 5;     // 0..24
-            int b_row_in_tile = gid / 5;             // 0..4 → fila dentro del tile
-            int b_col_in_tile = gid % 5;             // 0..4 → columna dentro del tile
+        // Cargar 4 tiles de B: threads 5..24 
+        else if (threadIdx.x >= 5 && threadIdx.x < 25 && threadIdx.y < 5) {
+            int id_thread = threadIdx.x - 5;                        //0..19
+            int tile_b_id = id_thread / 5;     
+            int col_in_b = id_thread % 5;     
 
-            int global_b_row = offset + b_row_in_tile;
-            int global_b_col = blockIdx.x * (4 * 5)  // 4 tiles × 5 cols por bloque
-                     + tile_idx * 5          // desplazamiento del tile concreto
-                     + b_col_in_tile;        // columna dentro del tile
-
-            tiles_b[tile_idx][b_row_in_tile][b_col_in_tile] = mat_b[ global_b_row * N + global_b_col ];
+            tiles_b[tile_b_id][threadIdx.y][col_in_b] = mat_b[(threadIdx.y+offset) * N + id_thread];    
         }
         
         __syncthreads();
     
-    // Etapa 2) Calculo de h's usando look up tables
+        // Calc h's
 
-        int lid = threadIdx.y * BLOCK_SIZE_X + threadIdx.x;         // 0..127 
-        int warp_id = lid >> 5;                                     // 0..3
-        int lane = lid & 31;                                        // 0..31
+        constexpr int global_idx = threadIdx.y * blockDim.x + threadIdx.x;
+        constexpr int tile_id = global_idx / 40;                              // 0..3
+        constexpr int index = global_idx mod 40;                              // 0..39
 
-        const float *a_ptr = &tile_a[0][0];
-        const float *b_ptr = &tiles_b[warp_id][0][0];
-
-        // cada hilo del warp calcula varios h’s
-        for (int idx = lane; idx < 76; idx += 32) {
-            h_shared[warp_id][idx] = calc_h(a_ptr, b_ptr, idx);
+        #pragma unroll
+        for (int r = index; r < 76; r += 40) {
+            h_shared[tile_id][r] = calc_h(tile_a, tiles_b[tile_id],r);
         }
         __syncthreads();
 
-    // Etapa 3) Calculo de c's
+        // Calc c's
 
-        for (int c_idx = lane; c_idx < 20; c_idx += 32) {
-            int row = c_idx / 5;
-            int col = c_idx % 5;
-            tiles_c[warp_id][row][col] += calc_c(h_shared[warp_id], c_idx);
+        if(global_idx < 80) {
+            tiles_c[threadIdx.x / 20][global_idx % 20] = calc_c(h[tile_id], global_idx % 20);
         }
         __syncthreads();
+        
+
+        // Escribir resultados finales a mat_c
+
+        
+        
+        if (threadIdx.x < 20)
+        {
+            Cp[row * N + col] = AccShared[threadIdx.x];
+        }
+        __syncwarp();
+
+
+        
+
+
+        // for (int i = 0; i < 2; i++) {
+        //     constexpr int global_idx = threadIdx.y * blockDim.x + threadIdx.x;
+        //     constexpr int tile_id = global_idx / 76;
+        //     constexpr int index = global_idx mod 76;
+        //     h_shared[tile_id][index] = calc_h(tile_a, tiles_b[tile_id], )
+        // }
+        // calc_h(tile_a, tiles_b[]);
+
+
+    // // Etapa 2) Calculo de h's usando look up tables
+
+    //     int lid = threadIdx.y * BLOCK_SIZE_X + threadIdx.x;         // 0..127 
+    //     int warp_id = lid >> 5;                                     // 0..3
+    //     int lane = lid & 31;                                        // 0..31
+
+    //     const float *a_ptr = &tile_a[0][0];
+    //     const float *b_ptr = &tiles_b[warp_id][0][0];
+
+    //     // cada hilo del warp calcula varios h’s
+    //     for (int idx = lane; idx < 76; idx += 32) {
+    //         h_shared[warp_id][idx] = calc_h(a_ptr, b_ptr, idx);
+    //     }
+    //     __syncthreads();
+
+    // // Etapa 3) Calculo de c's
+
+    //     for (int c_idx = lane; c_idx < 20; c_idx += 32) {
+    //         int row = c_idx / 5;
+    //         int col = c_idx % 5;
+    //         tiles_c[warp_id][row][col] += calc_c(h_shared[warp_id], c_idx);
+    //     }
+    //     __syncthreads();
     }
 
     // Etapa 4) Escribir resultados finales a mat_c
     
-    int lid = threadIdx.y * BLOCK_SIZE_X + threadIdx.x;
-    int warp_id = lid >> 5;
-    int lane = lid & 31;
-    for (int c_idx = lane; c_idx < 20; c_idx += 32) {
-        int row = c_idx / 5;
-        int col = c_idx % 5;
-        int global_row = blockIdx.y*4 + row;
-        int global_col = (blockIdx.x*BLOCK_SIZE_Y + warp_id)*5 + col;
-        mat_c[global_row * N + global_col] = tiles_c[warp_id][row][col];
-    }
+    // int lid = threadIdx.y * BLOCK_SIZE_X + threadIdx.x;
+    // int warp_id = lid >> 5;
+    // int lane = lid & 31;
+    // for (int c_idx = lane; c_idx < 20; c_idx += 32) {
+    //     int row = c_idx / 5;
+    //     int col = c_idx % 5;
+    //     int global_row = blockIdx.y*4 + row;
+    //     int global_col = (blockIdx.x*BLOCK_SIZE_Y + warp_id)*5 + col;
+    //     mat_c[global_row * N + global_col] = tiles_c[warp_id][row][col];
+    // }
 }
 
 
