@@ -1,6 +1,6 @@
 #include "mult_cublas.cuh"
 
-#include <cublas_v2.h>
+#include <cublas_v2.h>  
 #include <cuda_runtime.h>
 
 #include "util.cuh"
@@ -20,11 +20,11 @@ void mult_cublas(const float* mat_a, const float* mat_b, float* mat_c, int N)
     cublasHandle_t cublasH = NULL;
     cudaStream_t stream = NULL;
 
-    const float alpha = 1.0f;
-    const float beta = 0.0f;
+    float alpha = 1.0f;
+    float beta = 0.0f;
 
-    cublasOperation_t transa = CUBLAS_OP_N;
-    cublasOperation_t transb = CUBLAS_OP_N;
+    cublasOperation_t transa = CUBLAS_OP_T;
+    cublasOperation_t transb = CUBLAS_OP_T;
 
 
     /* step 1: create cublas handle, bind a stream */
@@ -32,6 +32,9 @@ void mult_cublas(const float* mat_a, const float* mat_b, float* mat_c, int N)
 
     CUDA_CHK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
     CUBLAS_CHECK(cublasSetStream(cublasH, stream));
+    
+    float *mat_c_transposed;
+    CUDA_CHK(cudaMalloc((void **)&mat_c_transposed, N*N * sizeof(float)));
 
     /* step 3: compute in native FP32 */
     CUBLAS_CHECK(
@@ -48,12 +51,38 @@ void mult_cublas(const float* mat_a, const float* mat_b, float* mat_c, int N)
             mat_b,
             N,
             &beta,
-            mat_c,
+            mat_c_transposed,
             N
         )
     );
 
     CUDA_CHK(cudaStreamSynchronize(stream));
+    
+    alpha = 1.0f;
+    beta = 0.0f;
+
+    CUBLAS_CHECK(
+        cublasSgeam(
+            cublasH,
+            CUBLAS_OP_T,
+            CUBLAS_OP_N,
+            N,
+            N,
+            &alpha,
+            mat_c_transposed,
+            N,
+            &beta,
+            mat_c,
+            N,
+            mat_c,
+            N
+        )
+    );
+    
+    CUDA_CHK(cudaFree(mat_c_transposed));
+
+    CUDA_CHK(cudaStreamSynchronize(stream));
+
     CUBLAS_CHECK(cublasDestroy(cublasH));
     CUDA_CHK(cudaStreamDestroy(stream));
 }

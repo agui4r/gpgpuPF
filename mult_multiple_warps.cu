@@ -155,8 +155,8 @@ __global__ void mult_multiple_warps_kernel(
     float *mat_c,
     int N
 ) {
-    __shared__ float tile_a[4][5];                              // Un tile de A.
-    __shared__ float tiles_b[TILES_PER_BLOCK][5][5];               // Multiples tiles de B.
+    __shared__ float tile_a[4][5];                                  // Un tile de A.
+    __shared__ float tiles_b[TILES_PER_BLOCK][5][5];                // Multiples tiles de B.
     __shared__ float h_shared[TILES_PER_BLOCK][76];                 
 
     __shared__ float tiles_c[TILES_PER_BLOCK][4][5];
@@ -167,6 +167,8 @@ __global__ void mult_multiple_warps_kernel(
 
     int tileX = blockIdx.x;
     int tileY = blockIdx.y;
+    const float *Ap = mat_a + (tileY*4)*N;
+    const float *Bp = mat_b + (tileX*5*4);
     float *Cp = mat_c + (tileY * 4) * N + tileX * 5 * 4;
 
     // Etapa 1)
@@ -180,9 +182,13 @@ __global__ void mult_multiple_warps_kernel(
     for (int offset = 0; offset < N; offset += 5) {
         // Cargar tile de A: threads 0..4 de cada fila
         if (threadIdx.x < 5 && threadIdx.y < 4) {
-            int a_row = blockIdx.y * 4 + threadIdx.y;
-            int a_col = offset + threadIdx.x;
-            tile_a[threadIdx.y][threadIdx.x] = mat_a[a_row * N + a_col];
+            // int a_row = blockIdx.y * 4 + threadIdx.y;
+            // int a_col = offset + threadIdx.x;
+            // tile_a[threadIdx.y][threadIdx.x] = mat_a[a_row * N + a_col];
+
+
+            int a_col = offset + threadIdx.x; 
+            tile_a[threadIdx.y][threadIdx.x] = Ap[threadIdx.y * N + a_col];
         }
         // Cargar 4 tiles de B: threads 5..24 
         else if (threadIdx.x >= 5 && threadIdx.x < 25 && threadIdx.y < 5) {
@@ -190,10 +196,21 @@ __global__ void mult_multiple_warps_kernel(
             int tile_b_id = id_thread / 5;     
             int col_in_b = id_thread % 5;     
 
-            tiles_b[tile_b_id][threadIdx.y][col_in_b] = mat_b[(threadIdx.y+offset) * N + id_thread];   
+            tiles_b[tile_b_id][threadIdx.y][col_in_b] = Bp[(threadIdx.y+offset) * N + id_thread];
         }
         
         __syncthreads();
+
+        // if(threadIdx.x == 0 && threadIdx.y == 0 && blockIdx.x == 0 && blockIdx.y == 0 && offset == 0){
+        //     for (int i = 0; i < TILES_PER_BLOCK; i++){
+        //         for (int y = 0; y < 5; y++){
+        //             for (int x = 0; x < 5; x++)
+        //                 printf("%1.1f ", tiles_b[i][y][x]);
+        //             printf("\n");
+        //         }
+        //         printf("\n");    
+        //     }
+        // }
     
         // Etapa 2) Calc h's
 
@@ -226,7 +243,6 @@ __global__ void mult_multiple_warps_kernel(
         int c_idx = global_idx % 20;                                            // 0..19   
         int row = c_idx / 5;                                                    // 0..3
         int col = c_idx % 5;                                                    // 0..4
-
 
         Cp[row * N + col + (c_tile_id * 5)] = tiles_c[c_tile_id][row][col];
     }

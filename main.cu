@@ -39,8 +39,8 @@ const std::vector<Algorithm> algorithms = {
     { "mult_naive", &mult_naive },
     { "mult_2", &mult_2 },
     { "mult_multiple_warps", &mult_multiple_warps },
-    //{ "mult_one_warp_per_tile", &mult_one_warp_per_tile },
-    //{ "mult_one_warp_per_tile_2", &mult_one_warp_per_tile_2 },
+    { "mult_one_warp_per_tile", &mult_one_warp_per_tile },
+    { "mult_one_warp_per_tile_2", &mult_one_warp_per_tile_2 },
 };
 
 // Takes device pointers
@@ -73,21 +73,41 @@ bool verify(const float *correct_mat, const float *to_verify_mat, size_t length)
     return res < 0.0001f;
 }
 
+// mat_c has to be a device pointer
+void print_matrix(const char *label, float *mat_c, int M, int N)
+{
+    float *h_mat_c = (float *)malloc(M*N * sizeof(float));
+    CUDA_CHK(cudaMemcpy(h_mat_c, mat_c, M*N * sizeof(float), cudaMemcpyDeviceToHost));
+    printf("============== %s =================\n", label);
+    for (int y = 0; y < M; y++)
+    {
+        for (int x = 0; x < N; x++)
+        {
+            printf("%1.1f ", h_mat_c[y * N + x]);
+        }
+        printf("\n");
+    }
+    printf("==================================\n");
+}
+
 int main(int argc, char *argv[])
 {
     int N = 5*32*3*10;
+    //int N = 160;
     int array_size = N * N;
     float *h_mat_a = (float *)malloc(array_size * sizeof(float));
     float *h_mat_b = (float *)malloc(array_size * sizeof(float));
     float *h_mat_c = (float *)malloc(array_size * sizeof(float));
 
-    // srand(1231323);
+    srand(1231323);
     for (int i = 0; i < array_size; i++)
     {
-        h_mat_a[i] = 1.0f; //rand() % 11;
-        h_mat_b[i] = 1.0f; //rand() % 11;
+        //h_mat_a[i] = 1.0f; //rand() % 11;
+        h_mat_a[i] = rand() % 11;
+        //h_mat_b[i] = 1.0f; //rand() % 11;
+        h_mat_b[i] = rand() % 11;
         h_mat_c[i] = 0.0f;
-    } 
+    }
 
     float *d_mat_a, *d_mat_b, *d_mat_c_correct;
     CUDA_CHK(cudaMalloc((void **)&d_mat_a, array_size * sizeof(float)));
@@ -100,7 +120,10 @@ int main(int argc, char *argv[])
     CUDA_CHK(cudaMemcpy(d_mat_c_correct, h_mat_c, array_size * sizeof(float), cudaMemcpyHostToDevice));
 
     mult_cublas(d_mat_a, d_mat_b, d_mat_c_correct, N);
-  
+
+    //print_matrix("A", d_mat_a, N, N);
+    //print_matrix("B", d_mat_b, N, N);
+
     float *d_mat_c_algorithm;
     CUDA_CHK(cudaMalloc((void **)&d_mat_c_algorithm, array_size * sizeof(float)));
     for (auto &algorithm : algorithms)
