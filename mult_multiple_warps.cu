@@ -10,13 +10,14 @@
 #include "mult_multiple_warps.cuh"
 #include "tables.cuh"
 #include "util.cuh"
+#include <cassert>
 
 #define BLOCK_SIZE_X 32
 #define BLOCK_SIZE_Y 5
 #define TILES_PER_BLOCK 4
 
 
-__device__ float calc_h(const float a[4][5], const float b[5][5], int h_idx) {
+__device__ float calculation_h(const float a[4][5], const float b[5][5], int h_idx) {
     switch (h_idx) {
         case 0: return a[2][1] * ( -b[1][0] - b[1][4] - b[2][0] );
         case 1: return (a[1][1] + a[1][4] - a[2][4]) * ( -b[1][4] - b[4][0] );
@@ -99,7 +100,7 @@ __device__ float calc_h(const float a[4][5], const float b[5][5], int h_idx) {
     return NAN;
 }
 
-__device__ float calc_c(const float h[76], int c_idx)
+__device__ float calculation_c(const float h[76], int c_idx)
 {
     switch (c_idx) {
         case 0: return -h[9]  + h[11] + h[13] - h[14] - h[15] + h[52] + h[4]  - h[65] - h[6];
@@ -164,7 +165,14 @@ __global__ void mult_multiple_warps_kernel(
             for (int x = 0; x < 5; x++)
                 tiles_c[i][y][x] = 0.0f;
 
-    //Etapa 1)
+    int tileX = blockIdx.x;
+    int tileY = blockIdx.y;
+    float *Cp = mat_c + (tileY * 4) * N + tileX * 5 * 4;
+
+    // Etapa 1)
+
+    // Pase estos calculos para arriba del for porque siempre dan lo mismo asi no se hacen en todos los for y aparte lo puedo usar abajo
+    // en la etapa 4.
 
     for (int offset = 0; offset < N; offset += 5) {
         // Cargar tile de A: threads 0..4 de cada fila
@@ -179,43 +187,54 @@ __global__ void mult_multiple_warps_kernel(
             int tile_b_id = id_thread / 5;     
             int col_in_b = id_thread % 5;     
 
-            tiles_b[tile_b_id][threadIdx.y][col_in_b] = mat_b[(threadIdx.y+offset) * N + id_thread];    
+            tiles_b[tile_b_id][threadIdx.y][col_in_b] = mat_b[(threadIdx.y+offset) * N + id_thread];   
         }
         
         __syncthreads();
     
-        // Calc h's
-
-        constexpr int global_idx = threadIdx.y * blockDim.x + threadIdx.x;
-        constexpr int tile_id = global_idx / 40;                              // 0..3
-        constexpr int index = global_idx mod 40;                              // 0..39
+        // Etapa 2) Calc h's
+        int global_idx = threadIdx.y * blockDim.x + threadIdx.x;    //0..159
+        int tile_id = global_idx / 40;                              // 0..3
+        int index = global_idx % 40;                                // 0..39
 
         #pragma unroll
         for (int r = index; r < 76; r += 40) {
-            h_shared[tile_id][r] = calc_h(tile_a, tiles_b[tile_id],r);
+            h_shared[tile_id][r] = calculation_h(tile_a, tiles_b[tile_id],r);
         }
         __syncthreads();
 
-        // Calc c's
+        // Etapa 3) Calc c's
 
-        if(global_idx < 80) {
-            tiles_c[threadIdx.x / 20][global_idx % 20] = calc_c(h[tile_id], global_idx % 20);
+        if (global_idx < 80) {
+            int c_tile_id = global_idx / 20;                                        // 0..3
+            int c_idx = global_idx % 20;                                            // 0..19   
+            int row = c_idx / 5;                                                    // 0..4
+            int col = c_idx % 5;                                                    // 0..4
+            tiles_c[c_tile_id][row][col] += calculation_c(h_shared[c_tile_id], c_idx); 
         }
+
+        // if(global_idx < 80) {
+        //     tiles_c[threadIdx.x / 20][global_idx % 20] = calc_c(h_shared[tile_id], global_idx % 20);
+        // }
         __syncthreads();
-        
+    }
 
-        // Escribir resultados finales a mat_c
+    // Etapa 4) Escribir resultados finales a mat_c
 
-        
-        
-        if (threadIdx.x < 20)
-        {
-            Cp[row * N + col] = AccShared[threadIdx.x];
-        }
-        __syncwarp();
+    if(global_idx < 80) {
+        int c_tile_id = global_idx / 20;                                        // 0..3
+        int c_idx = global_idx % 20;                                            // 0..19   
+        int row = c_idx / 5;                                                    // 0..3
+        int col = c_idx % 5;                                                    // 0..4
 
 
+        Cp[row * N + col + (c_tile_id * 5)] = tiles_c[c_tile_id][row][col];
+    }
         
+    // if (threadIdx.x < 20) {
+    //     Cp[row * N + col] = AccShared[threadIdx.x];
+    // }
+    // __syncwarp();
 
 
         // for (int i = 0; i < 2; i++) {
@@ -250,7 +269,7 @@ __global__ void mult_multiple_warps_kernel(
     //         tiles_c[warp_id][row][col] += calc_c(h_shared[warp_id], c_idx);
     //     }
     //     __syncthreads();
-    }
+    //}
 
     // Etapa 4) Escribir resultados finales a mat_c
     
@@ -269,7 +288,7 @@ __global__ void mult_multiple_warps_kernel(
 
 void mult_multiple_warps(const float *mat_a, const float *mat_b, float *mat_c, int N) {
     // Cada bloque de la matriz toma cuatro tiles de B y un tile de A. Luego, calcula 4 tiles temporales de C.
-    dim3 gridDim((N / 5) / BLOCK_SIZE_Y, N / 4, 1);
+    dim3 gridDim((N / 5) / 4, N / 4, 1);   
     dim3 blockDim(BLOCK_SIZE_X, BLOCK_SIZE_Y, 1);
     mult_multiple_warps_kernel<<<gridDim, blockDim>>>(mat_a, mat_b, mat_c, N);
     CUDA_CHK(cudaGetLastError());
