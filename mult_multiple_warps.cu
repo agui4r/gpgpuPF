@@ -170,9 +170,12 @@ __global__ void mult_multiple_warps_kernel(
     float *Cp = mat_c + (tileY * 4) * N + tileX * 5 * 4;
 
     // Etapa 1)
-
+    
     // Pase estos calculos para arriba del for porque siempre dan lo mismo asi no se hacen en todos los for y aparte lo puedo usar abajo
     // en la etapa 4.
+    int global_idx = threadIdx.y * blockDim.x + threadIdx.x;    //0..159
+    int tile_id = global_idx / 40;                              // 0..3
+    int index = global_idx % 40;                                // 0..39
 
     for (int offset = 0; offset < N; offset += 5) {
         // Cargar tile de A: threads 0..4 de cada fila
@@ -193,9 +196,6 @@ __global__ void mult_multiple_warps_kernel(
         __syncthreads();
     
         // Etapa 2) Calc h's
-        int global_idx = threadIdx.y * blockDim.x + threadIdx.x;    //0..159
-        int tile_id = global_idx / 40;                              // 0..3
-        int index = global_idx % 40;                                // 0..39
 
         #pragma unroll
         for (int r = index; r < 76; r += 40) {
