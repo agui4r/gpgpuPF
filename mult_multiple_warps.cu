@@ -17,16 +17,18 @@
 #define BLOCK_SIZE_Y 5
 #define TILES_PER_BLOCK 4
 
+using MultIdxT = int64_t;
+
 inline __device__ float calc_h(const float *a, const float *b, int h_idx)
 {
     float sum_a = 0.0f, sum_b = 0.0f;
 
     #pragma unroll
-    for (int8_t i = 0; i < sizeof(a_pos[h_idx]) / 4; i++)
+    for (int8_t i = 0; i < sizeof(a_pos[h_idx]) / sizeof(MultIdxT); i++)
     {
-        int32_t four_indices = ((int32_t*)a_pos[h_idx])[i];
+        MultIdxT four_indices = ((MultIdxT*)a_pos[h_idx])[i];
         #pragma unroll
-        for (int offset = 0; offset < 8 * sizeof(int32_t); offset+=8)
+        for (int offset = 0; offset < 8 * sizeof(MultIdxT); offset+=8)
         {
             int8_t index = (four_indices >> offset) & 0xff;
             sum_a += index >= 0
@@ -36,11 +38,11 @@ inline __device__ float calc_h(const float *a, const float *b, int h_idx)
     }
 
     #pragma unroll
-    for (int8_t i = 0; i < sizeof(a_neg[h_idx]) / 4; i++)
+    for (int8_t i = 0; i < sizeof(a_neg[h_idx]) / sizeof(MultIdxT); i++)
     {
-        int32_t four_indices = ((int32_t*)a_neg[h_idx])[i];
+        MultIdxT four_indices = ((MultIdxT*)a_neg[h_idx])[i];
         #pragma unroll
-        for (int offset = 0; offset < 8 * sizeof(int32_t); offset+=8)
+        for (int offset = 0; offset < 8 * sizeof(MultIdxT); offset+=8)
         {
             int8_t index = (four_indices >> offset) & 0xff;
             sum_a -= index >= 0
@@ -50,11 +52,11 @@ inline __device__ float calc_h(const float *a, const float *b, int h_idx)
     }
 
     #pragma unroll
-    for (int8_t i = 0; i < sizeof(b_pos[h_idx]) / 4; i++)
+    for (int8_t i = 0; i < sizeof(b_pos[h_idx]) / sizeof(MultIdxT); i++)
     {
-        int32_t four_indices = ((int32_t*)b_pos[h_idx])[i];
+        MultIdxT four_indices = ((MultIdxT*)b_pos[h_idx])[i];
         #pragma unroll
-        for (int offset = 0; offset < 8 * sizeof(int32_t); offset+=8)
+        for (int offset = 0; offset < 8 * sizeof(MultIdxT); offset+=8)
         {
             int8_t index = (four_indices >> offset) & 0xff;
             sum_b += index >= 0
@@ -64,11 +66,11 @@ inline __device__ float calc_h(const float *a, const float *b, int h_idx)
     }
 
     #pragma unroll
-    for (int8_t i = 0; i < sizeof(b_neg[h_idx]) / 4; i++)
+    for (int8_t i = 0; i < sizeof(b_neg[h_idx]) / sizeof(MultIdxT); i++)
     {
-        int32_t four_indices = ((int32_t*)b_neg[h_idx])[i];
+        MultIdxT four_indices = ((MultIdxT*)b_neg[h_idx])[i];
         #pragma unroll
-        for (int offset = 0; offset < 8 * sizeof(int32_t); offset+=8)
+        for (int offset = 0; offset < 8 * sizeof(MultIdxT); offset+=8)
         {
             int8_t index = (four_indices >> offset) & 0xff;
             sum_b -= index >= 0
@@ -85,11 +87,11 @@ inline __device__ float calc_c(const float h[76], int c_idx)
     float res = 0.0f;
     
     #pragma unroll
-    for (int8_t i = 0; i < sizeof(h_pos[c_idx]) / 4; i++)
+    for (int8_t i = 0; i < sizeof(h_pos[c_idx]) / sizeof(MultIdxT); i++)
     {
-        int32_t four_indices = ((int32_t*)h_pos[c_idx])[i];
+        MultIdxT four_indices = ((MultIdxT*)h_pos[c_idx])[i];
         #pragma unroll
-        for (int offset = 0; offset < 8 * sizeof(int32_t); offset+=8)
+        for (int offset = 0; offset < 8 * sizeof(MultIdxT); offset+=8)
         {
             int8_t index = (four_indices >> offset) & 0xff;
             res += index >= 0 ? h[index] : 0.0f;
@@ -97,11 +99,11 @@ inline __device__ float calc_c(const float h[76], int c_idx)
     }
     
     #pragma unroll
-    for (int8_t i = 0; i < sizeof(h_neg[c_idx]) / 4; i++)
+    for (int8_t i = 0; i < sizeof(h_neg[c_idx]) / sizeof(MultIdxT); i++)
     {
-        int32_t four_indices = ((int32_t*)h_neg[c_idx])[i];
+        MultIdxT four_indices = ((MultIdxT*)h_neg[c_idx])[i];
         #pragma unroll
-        for (int offset = 0; offset < 8 * sizeof(int32_t); offset+=8)
+        for (int offset = 0; offset < 8 * sizeof(MultIdxT); offset+=8)
         {
             int8_t index = (four_indices >> offset) & 0xff;
             res -= index >= 0 ? h[index] : 0.0f;
