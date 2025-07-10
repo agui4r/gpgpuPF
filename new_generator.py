@@ -36,13 +36,15 @@ tables = [
 
 for (tile_type_idx, sign, table_name) in tables:
     max_elem = max(lookup_table, key=lambda value: len(value[tile_type_idx][sign]))
-    max_len = len(max_elem[tile_type_idx][sign])
-    print(f"__constant__ int8_t {table_name}[][{max_len+1}] = {{") # +1 for terminator
+    max_len = max(8, len(max_elem[tile_type_idx][sign]))
+    print(f"__constant__ int8_t {table_name}[][{max_len}] = {{")
     for h_idx in range(len(lookup_table)):
         print("    {", end="")
         for a_sums in lookup_table[h_idx][tile_type_idx][sign]:
             print(f"{a_sums}, ", end="")
-        print("-1},")
+        for i in range(max_len - len(lookup_table[h_idx][tile_type_idx][sign])):
+            print("-1, ", end="")
+        print("}, ")
     print("};")
     print()
 
@@ -68,12 +70,14 @@ tables = [
 
 for (sign, table_name) in tables:
     max_elem = max(c_lookup_table, key=lambda value: len(value[sign]))
-    max_len = len(max_elem[sign])
-    print(f"__constant__ int8_t {table_name}[][{max_len+1}] = {{") # +1 for terminator
+    max_len = max(8, len(max_elem[sign]))
+    print(f"__constant__ int8_t {table_name}[][{max_len}] = {{")
     for c_idx in range(len(c_lookup_table)):
         print("    {", end="")
         for h_sums in c_lookup_table[c_idx][sign]:
             print(f"{h_sums}, ", end="")
-        print("-1},")
+        for i in range(max_len - len(c_lookup_table[c_idx][sign])):
+            print("-1, ", end="")
+        print("}, ")
     print("};")
     print()
