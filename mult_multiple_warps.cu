@@ -146,11 +146,6 @@ __global__ void mult_multiple_warps_kernel(
     for (int offset = 0; offset < N; offset += 5) {
         // Cargar tile de A: threads 0..4 de cada fila
         if (threadIdx.x < 5 && threadIdx.y < 4) {
-            // int a_row = blockIdx.y * 4 + threadIdx.y;
-            // int a_col = offset + threadIdx.x;
-            // tile_a[threadIdx.y][threadIdx.x] = mat_a[a_row * N + a_col];
-
-
             int a_col = offset + threadIdx.x; 
             tile_a[threadIdx.y][threadIdx.x] = Ap[threadIdx.y * N + a_col];
         }
@@ -165,17 +160,6 @@ __global__ void mult_multiple_warps_kernel(
         
         __syncthreads();
 
-        // if(threadIdx.x == 0 && threadIdx.y == 0 && blockIdx.x == 0 && blockIdx.y == 0 && offset == 0){
-        //     for (int i = 0; i < TILES_PER_BLOCK; i++){
-        //         for (int y = 0; y < 5; y++){
-        //             for (int x = 0; x < 5; x++)
-        //                 printf("%1.1f ", tiles_b[i][y][x]);
-        //             printf("\n");
-        //         }
-        //         printf("\n");    
-        //     }
-        // }
-    
         // Etapa 2) Calc h's
 
         #pragma unroll
@@ -194,9 +178,6 @@ __global__ void mult_multiple_warps_kernel(
             tiles_c[c_tile_id][row][col] += calc_c(h_shared[c_tile_id], c_idx); 
         }
 
-        // if(global_idx < 80) {
-        //     tiles_c[threadIdx.x / 20][global_idx % 20] = calc_c(h_shared[tile_id], global_idx % 20);
-        // }
         __syncthreads();
     }
 
@@ -210,59 +191,6 @@ __global__ void mult_multiple_warps_kernel(
 
         Cp[row * N + col + (c_tile_id * 5)] = tiles_c[c_tile_id][row][col];
     }
-        
-    // if (threadIdx.x < 20) {
-    //     Cp[row * N + col] = AccShared[threadIdx.x];
-    // }
-    // __syncwarp();
-
-
-        // for (int i = 0; i < 2; i++) {
-        //     constexpr int global_idx = threadIdx.y * blockDim.x + threadIdx.x;
-        //     constexpr int tile_id = global_idx / 76;
-        //     constexpr int index = global_idx mod 76;
-        //     h_shared[tile_id][index] = calc_h(tile_a, tiles_b[tile_id], )
-        // }
-        // calc_h(tile_a, tiles_b[]);
-
-
-    // // Etapa 2) Calculo de h's usando look up tables
-
-    //     int lid = threadIdx.y * BLOCK_SIZE_X + threadIdx.x;         // 0..127 
-    //     int warp_id = lid >> 5;                                     // 0..3
-    //     int lane = lid & 31;                                        // 0..31
-
-    //     const float *a_ptr = &tile_a[0][0];
-    //     const float *b_ptr = &tiles_b[warp_id][0][0];
-
-    //     // cada hilo del warp calcula varios h’s
-    //     for (int idx = lane; idx < 76; idx += 32) {
-    //         h_shared[warp_id][idx] = calc_h(a_ptr, b_ptr, idx);
-    //     }
-    //     __syncthreads();
-
-    // // Etapa 3) Calculo de c's
-
-    //     for (int c_idx = lane; c_idx < 20; c_idx += 32) {
-    //         int row = c_idx / 5;
-    //         int col = c_idx % 5;
-    //         tiles_c[warp_id][row][col] += calc_c(h_shared[warp_id], c_idx);
-    //     }
-    //     __syncthreads();
-    //}
-
-    // Etapa 4) Escribir resultados finales a mat_c
-    
-    // int lid = threadIdx.y * BLOCK_SIZE_X + threadIdx.x;
-    // int warp_id = lid >> 5;
-    // int lane = lid & 31;
-    // for (int c_idx = lane; c_idx < 20; c_idx += 32) {
-    //     int row = c_idx / 5;
-    //     int col = c_idx % 5;
-    //     int global_row = blockIdx.y*4 + row;
-    //     int global_col = (blockIdx.x*BLOCK_SIZE_Y + warp_id)*5 + col;
-    //     mat_c[global_row * N + global_col] = tiles_c[warp_id][row][col];
-    // }
 }
 
 

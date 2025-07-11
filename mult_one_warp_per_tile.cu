@@ -129,14 +129,11 @@ __global__ void mult_one_warp_per_tile_kernel(
     #pragma unroll 1
     for (int offset = 0; offset < N; offset += 5)
     {
-        {
-        // Timer t("Copiar tile a registros");
         // Traigo el tile de A a los registros
         if (threadIdx.x < 20)
         {
            Areg[threadIdx.x] = Ap[row * N + col + offset];
         }
-        //__syncwarp();
 
         // Traigo el tile de B a los registros
         if (threadIdx.x < 25)
@@ -144,80 +141,24 @@ __global__ void mult_one_warp_per_tile_kernel(
             Breg[threadIdx.x] = Bp[(row + offset) * N + col];
         }
         __syncwarp();
-        }
 
-        {
-        // Timer t("Calcular C");
-        // Calculo el tile de C de esta iteracion, repartiendo entre los hilos
         __shared__ float h[76];
         for (int r = threadIdx.x; r < 76; r += 32)
         {
             h[r] = calc_h(Areg, Breg, r);
-            
-            // float a_dot_P = 0.f, b_dot_Q = 0.f;
-            //
-            // #pragma unroll
-            // for (int t = 0; t < 20; t++)
-            // {
-            //     a_dot_P += float(P[t][r]) * Areg[t];
-            // }
-            //
-            // #pragma unroll
-            // for (int t = 0; t < 25; t++)
-            // {
-            //     b_dot_Q += float(Q[t][r]) * Breg[t];
-            // }
-            //
-            // float m = a_dot_P * b_dot_Q;
-            //
-            // #pragma unroll
-            // for (int t = 0; t < 20; t++)
-            // {
-            // Acc[t] += float(R[t][r]) * m;
-            // }
         }
         __syncwarp();
         if (threadIdx.x < 20)
         {
             AccShared[threadIdx.x] += calc_c(h, threadIdx.x);
         }
-        }
-
-        // {
-        // Timer t("Combinar Acc");
-        // // Hago __shfl_down_sync para acumular todos los acc locales de cada thread en el acc local del thread 0
-        // for (int shuffle_offset = 16; shuffle_offset; shuffle_offset >>= 1)
-        // {
-        //     #pragma unroll
-        //     for (int t = 0; t < 20; t++)
-        //     {
-        //         Acc[t] += __shfl_down_sync(0xffffffff, Acc[t], shuffle_offset);
-        //     }
-        // }
-        // }
-        //
-        // {
-        // Timer t("guardar en shared");
-        // // Como solo el thread 0 tiene en su `Acc` el resultado de esta iteracion, solo lo puede copiar el
-        // if (threadIdx.x == 0)
-        // {
-        //     #pragma unroll
-        //     for (int t = 0; t < 20; t++)
-        //     {
-        //         AccShared[t] += Acc[t];
-        //     }
-        // }
-        // }
     }
 
-    {
-    // Timer t("Escribir en c global");
     if (threadIdx.x < 20)
     {
         Cp[row * N + col] = AccShared[threadIdx.x];
     }
     __syncwarp();
-    }
 }
 
 void mult_one_warp_per_tile(const float* mat_a, const float* mat_b, float* mat_c, int N)

@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <ctime>
 
-// __host__ __device__ void deepmatmul(const float a[4][5], const float b[5][5], float c[4][5]) {
 __device__ void deepmatmul(const float a[4][5], const float b[5][5], float c[4][5]) {
     float h[76];
 
@@ -85,13 +84,6 @@ __device__ void deepmatmul(const float a[4][5], const float b[5][5], float c[4][
     h[74] = - (a[0][1] + a[0][3] - a[1][1] - a[1][4] - a[2][0] + a[2][1] + a[2][3] + a[2][4] - a[3][0] + a[3][1]) * b[1][4];
     h[75] = (a[0][2] + a[2][2]) * (-b[0][0] + b[0][3] - b[0][4] + b[1][3] + b[2][3] - b[2][4]);
 
-    // if (threadIdx.x == 0 && threadIdx.y == 0 && blockIdx.x == 0 && blockIdx.y == 0)
-    // {
-    //     for (int i = 0; i < 76; i++)
-    //         printf("%1.0f ", h[i]);
-    //     printf("\n");
-    // }
-
     c[0][0] += -h[9]  + h[11] + h[13] - h[14] - h[15] + h[52] + h[4]  - h[65] - h[6];
     c[0][1] +=  h[12] + h[14] + h[19] + h[20] - h[21] + h[22] + h[24] - h[42] + h[48] + h[49];
     c[0][2] +=  h[14] + h[22] + h[23] + h[33] - h[36] + h[39] - h[40] + h[54] - h[55] - h[8];
@@ -134,34 +126,20 @@ __global__ void mult_one_thread_per_tile_in_c_mat_kernel(
         for (int x = 0; x < 5; x++)
             tile_c[y][x] = 0.0f;
 
-//#define TIME
-#ifdef TIME
-    clock_t start, stop;
-#endif
     for (int offset = 0; offset < N / 5; offset++)
     {
-#ifdef TIME
-        start = clock();
-#endif
-
         static_assert(BLOCK_SIZE_X == 4*5);
         int y = threadIdx.x / 5;
         int x = threadIdx.x % 5;
-        // for (int y = 0; y < 5; y++) for (int x = 0; x < 4; x++)
         tiles_a[threadIdx.y][y][x] = mat_a[(tile_idx_y * 4 + y) * N + (offset * 5 + x)];
         
         static_assert(BLOCK_SIZE_Y == 5*5);
         y = threadIdx.y / 5;
         x = threadIdx.y % 5;
-        // for (int y = 0; y < 5; y++) for (int x = 0; x < 5; x++)
         tiles_b[threadIdx.x][y][x] = mat_b[(offset * 5 + y) * N + (tile_idx_x * 5 + x)];
 
         __syncthreads();
         
-#ifdef TIME
-        stop = clock();
-#endif
-
         deepmatmul(tiles_a[threadIdx.y], tiles_b[threadIdx.x], tile_c);
         
         __syncthreads(); 
@@ -170,11 +148,6 @@ __global__ void mult_one_thread_per_tile_in_c_mat_kernel(
     for (int y = 0; y < 4; y++)
         for (int x = 0; x < 5; x++)
             mat_c[(tile_idx_y * 4 + y) * N + (tile_idx_x * 5 + x)] = tile_c[y][x];
-
-#ifdef TIME
-    if (blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0)
-        printf("t: %ld\n", stop - start);
-#endif
 }
 
 void mult_one_thread_per_tile_in_c_mat(
@@ -183,9 +156,6 @@ void mult_one_thread_per_tile_in_c_mat(
     float *mat_c,
     int N
 ) {
-#ifdef TIME
-    cudaFuncSetCacheConfig(mult_one_thread_per_tile_in_c_mat_kernel, cudaFuncCachePreferShared);
-#endif
     dim3 gridDim((N / 5) / BLOCK_SIZE_X, (N / 4) / BLOCK_SIZE_Y, 1);
     dim3 blockDim(BLOCK_SIZE_X, BLOCK_SIZE_Y, 1);
     mult_one_thread_per_tile_in_c_mat_kernel<<<gridDim, blockDim>>>(mat_a, mat_b, mat_c, N);

@@ -20,10 +20,6 @@ __global__ void mult_tiled_32x32_conventional_kernel(const float* mat_a, const f
     {
         tile_a[threadIdx.y][threadIdx.x] = mat_a[(y)*N + (tile_i*TILE_LENGTH+threadIdx.x)];
         tile_b[threadIdx.y][threadIdx.x] = mat_b[(tile_i*TILE_LENGTH+threadIdx.y)*N + (x)];
-        // if (threadIdx.y == 0)
-        // {
-        //     tile_b[4][threadIdx.x] = mat_b[(tile_i*TILE_LENGTH+4)*N + (x)];
-        // }
 
         __syncthreads();
 
