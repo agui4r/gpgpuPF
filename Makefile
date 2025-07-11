@@ -15,7 +15,8 @@ LIBS = -lcublas
 MAIN = main
 OBJS = main.o mult_one_thread_per_tile_in_c_mat.o mult_naive.o mult_2.o \
 	   mult_tiled_32x32_conventional.o mult_cublas.o mult_one_warp_per_tile.o \
-	   mult_one_warp_per_tile_2.o mult_multiple_warps.o
+	   mult_one_warp_per_tile_2.o mult_multiple_warps.o mult_one_warp_per_tile_con_switch.o \
+	   mult_multiple_warps_con_switch.o
 
 # TEMPLATE
 #
@@ -51,11 +52,17 @@ mult_2.o: util.cuh mult_2.cuh mult_2.cu
 mult_one_warp_per_tile.o: util.cuh mult_one_warp_per_tile.cuh mult_one_warp_per_tile.cu tables.cuh
 	$(CC) $(NVCC_FLAGS) -c -o $@ mult_one_warp_per_tile.cu
 
+mult_one_warp_per_tile_con_switch.o: util.cuh mult_one_warp_per_tile_con_switch.cuh mult_one_warp_per_tile_con_switch.cu
+	$(CC) $(NVCC_FLAGS) -c -o $@ mult_one_warp_per_tile_con_switch.cu
+
 mult_one_warp_per_tile_2.o: util.cuh mult_one_warp_per_tile_2.cuh mult_one_warp_per_tile_2.cu
 	$(CC) $(NVCC_FLAGS) -c -o $@ mult_one_warp_per_tile_2.cu
 
 mult_multiple_warps.o: util.cuh mult_multiple_warps.cuh tables.cuh mult_multiple_warps.cu
 	$(CC) $(NVCC_FLAGS) -c -o $@ mult_multiple_warps.cu
+
+mult_multiple_warps_con_switch.o: util.cuh mult_multiple_warps_con_switch.cuh mult_multiple_warps_con_switch.cu
+	$(CC) $(NVCC_FLAGS) -c -o $@ mult_multiple_warps_con_switch.cu
 
 clean:
 	rm -f $(MAIN) *.o

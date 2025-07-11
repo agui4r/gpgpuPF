@@ -13,7 +13,9 @@
 #include "mult_tiled_32x32_conventional.cuh"
 #include "mult_2.cuh"
 #include "mult_one_warp_per_tile.cuh"
+#include "mult_one_warp_per_tile_con_switch.cuh"
 #include "mult_multiple_warps.cuh"
+#include "mult_multiple_warps_con_switch.cuh"
 
 #include "util.cuh"
 
@@ -30,17 +32,19 @@ struct Algorithm {
     void (*function)(const float* mat_a, const float* mat_b, float* mat_c, int N);
 };
 
-constexpr int ITERATIONS = 3;
+constexpr int ITERATIONS = 1;
 
 const std::vector<Algorithm> algorithms = {
     { "mult_cublas", &mult_cublas },
     { "mult_tiled_32x32_conventional", &mult_tiled_32x32_conventional },
     { "mult_one_thread_per_tile_in_c_mat", &mult_one_thread_per_tile_in_c_mat },
-    { "mult_naive", &mult_naive },
-    { "mult_2", &mult_2 },
+    // { "mult_naive", &mult_naive },
+    // { "mult_2", &mult_2 },
     { "mult_multiple_warps", &mult_multiple_warps },
+    { "mult_multiple_warps_con_switch", &mult_multiple_warps_con_switch },
     { "mult_one_warp_per_tile", &mult_one_warp_per_tile },
-    { "mult_one_warp_per_tile_2", &mult_one_warp_per_tile_2 },
+    { "mult_one_warp_per_tile_con_switch", &mult_one_warp_per_tile_con_switch },
+    // { "mult_one_warp_per_tile_2", &mult_one_warp_per_tile_2 },
 };
 
 // Takes device pointers
